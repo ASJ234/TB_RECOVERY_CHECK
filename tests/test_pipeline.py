@@ -1,6 +1,3 @@
-import pytest
-from pathlib import Path
-import json
 
 
 class TestPipelineConfig:
@@ -48,8 +45,6 @@ class TestAPIImports:
     def test_schemas_import(self):
         from src.api.schemas import (
             Aim1PredictionRequest,
-            Aim2PredictionRequest,
-            PredictionResponse,
         )
         req = Aim1PredictionRequest()
         assert req is not None

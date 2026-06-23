@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-import pandas as pd
 
 
 class Aim1PredictionRequest(BaseModel):

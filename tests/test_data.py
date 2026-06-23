@@ -1,6 +1,4 @@
-import pytest
 import pandas as pd
-from pathlib import Path
 from src.data.load_data import (
     load_merged_patients,
     load_demographic_patients,
@@ -10,7 +8,6 @@ from src.data.load_data import (
 from src.data.clean_data import (
     clean_patients,
     clean_followup,
-    clean_healthy_contacts,
     build_aim1_dataset,
     build_aim2_dataset,
 )

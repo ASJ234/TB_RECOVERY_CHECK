@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.metrics import (
     roc_curve, auc, precision_recall_curve, average_precision_score,
-    confusion_matrix, classification_report, f1_score, recall_score,
+    confusion_matrix, f1_score, recall_score,
     precision_score, roc_auc_score
 )
 from pathlib import Path

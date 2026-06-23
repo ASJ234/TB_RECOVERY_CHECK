@@ -11,7 +11,6 @@ DEMOGRAPHIC_FILE = RAW_DATA_DIR / "MTIPLUS DEMOGRAPHIC DATA (1) (1).xlsx"
 def load_merged_patients() -> pd.DataFrame:
     df = pd.read_excel(PATIENT_FILE, sheet_name="Merged")
     df = df.iloc[1:].reset_index(drop=True)
-    cols = list(df.columns)
     rename_map = {
         "Unnamed: 4": "BASELINE_RESULT",
         "Unnamed: 6": "TEMPERATURE_CELCIUS",

@@ -1,10 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
-import numpy as np
 import io
-import json
-from pathlib import Path
 
 from src.api.schemas import (
     Aim1PredictionRequest,

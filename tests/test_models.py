@@ -1,4 +1,3 @@
-import pytest
 import pandas as pd
 import numpy as np
 from sklearn.pipeline import Pipeline
@@ -66,7 +65,6 @@ class TestTrain:
 class TestPredict:
     def test_predict_single(self):
         from src.models.predict import predict_single
-        from sklearn.pipeline import Pipeline
         from sklearn.linear_model import LogisticRegression
         from sklearn.preprocessing import StandardScaler
         from sklearn.compose import ColumnTransformer
@@ -95,7 +93,6 @@ class TestPredict:
 
     def test_predict_batch(self):
         from src.models.predict import predict_batch
-        from sklearn.pipeline import Pipeline
         from sklearn.linear_model import LogisticRegression
         from sklearn.preprocessing import StandardScaler
         from sklearn.compose import ColumnTransformer
@@ -123,7 +120,6 @@ class TestPredict:
 class TestEvaluate:
     def test_evaluate_model(self):
         from src.models.evaluate import evaluate_model
-        from sklearn.pipeline import Pipeline
         from sklearn.linear_model import LogisticRegression
         from sklearn.preprocessing import StandardScaler
         from sklearn.compose import ColumnTransformer

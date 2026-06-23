@@ -128,9 +128,6 @@ def train_models(
         model_path = REGISTRY_DIR / aim / f"{version}_{name}.pkl"
         joblib.dump(pipeline, model_path)
 
-        params = pipeline.get_params()
-        param_str = str({k: str(v) for k, v in params.items() if k != "classifier"})
-
         metadata = {
             "model": name,
             "version": version,
@@ -143,7 +140,7 @@ def train_models(
             "train_avg_precision": train_ap,
             "cv_auc_mean": auc_mean,
             "cv_auc_std": auc_std,
-            "params_hash": _compute_params_hash(params),
+            "params_hash": _compute_params_hash(pipeline.get_params()),
             "data_hash": _compute_data_hash(X_train),
             "cv_folds": cv_folds if n_samples >= cv_folds else n_samples,
             "use_smote": use_smote,

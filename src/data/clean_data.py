@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from src.data.load_data import (
     load_merged_patients,
-    load_demographic_patients,
     load_followup,
     load_healthy_contacts,
     get_processsed_path,

@@ -3,7 +3,6 @@ import numpy as np
 import joblib
 from pathlib import Path
 import json
-import xgboost as xgb
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 REGISTRY_DIR = MODELS_DIR / "registry"
