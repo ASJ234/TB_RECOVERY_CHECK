@@ -1,0 +1,21 @@
+api:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 1
+  log_level: "info"
+
+ngrok:
+  enabled: true
+  authtoken: "${NGROK_AUTHTOKEN}"
+  domain: ""   # Set to your reserved ngrok domain (paid plan)
+  region: "us"
+
+model:
+  aim1_champion: "xgboost"   # Preferred algorithm for Aim 1
+  aim2_champion: "xgboost"   # Preferred algorithm for Aim 2
+  fallback_version: null      # null = use champion
+
+pipeline:
+  auto_retrain_on_startup: false
+  skip_if_data_unchanged: true
+  force_retrain: false

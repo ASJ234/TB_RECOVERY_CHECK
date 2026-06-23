@@ -1,0 +1,82 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 0"  # Every Sunday at 6 AM UTC
+  workflow_dispatch:
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run training pipeline
+        run: |
+          python -m src.pipeline.training_pipeline --aim all
+      - name: Archive models
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-models
+          path: |
+            models/
+          retention-days: 30
+      - name: Commit model registry updates
+        run: |
+          git config user.name "TB Recovery Bot"
+          git config user.email "bot@tb-recovery.local"
+          git add models/registry/model_registry.csv
+          git diff --cached --quiet || git commit -m "chore: update model registry [skip ci]"
+          git push
+        continue-on-error: true
+
+  validate:
+    runs-on: ubuntu-latest
+    needs: [train]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: trained-models
+          path: models/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Validate models
+        run: |
+          python -c "
+          import json
+          from pathlib import Path
+          meta_dir = Path('models/metadata')
+          for f in meta_dir.glob('*.json'):
+              with open(f) as fh:
+                  meta = json.load(fh)
+              auc = meta.get('cv_auc_mean')
+              print(f'{meta[\"model\"]} ({meta[\"version\"]}): CV AUC = {auc}')
+              if auc and auc < 0.5:
+                  print(f'WARNING: {meta[\"model\"]} AUC below 0.5')
+          print('Validation complete.')
+          "
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: false  # Manual deploy via SSH (local machine). Set to true for automated deploy.
+    steps:
+      - name: Deploy placeholder
+        run: echo "Deploy step: scp models/ to local server, restart API"

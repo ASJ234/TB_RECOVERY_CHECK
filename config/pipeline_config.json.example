@@ -1,0 +1,21 @@
+{
+  "aim1": {
+    "target_column": "TARGET_NON_CONVERSION_ANY",
+    "test_size": 0.2,
+    "cv_folds": 5,
+    "use_smote": true,
+    "random_state": 42,
+    "models": ["logistic_regression", "random_forest", "xgboost"]
+  },
+  "aim2": {
+    "target_column": "TARGET_SYMPTOM_PRESENT",
+    "test_size": 0.2,
+    "cv_folds": 5,
+    "use_smote": true,
+    "random_state": 42,
+    "models": ["logistic_regression", "random_forest", "xgboost"]
+  },
+  "skip_if_data_unchanged": true,
+  "save_plots": true,
+  "log_level": "INFO"
+}

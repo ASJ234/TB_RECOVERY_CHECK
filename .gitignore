@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.so
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/processed/*
+!data/processed/.gitkeep
+
+# Models (track registry CSV, not individual model files)
+models/registry/aim1_non_conversion/*.pkl
+models/registry/aim2_contact_risk/*.pkl
+models/scalers/*.pkl
+models/metadata/*.json
+!models/metadata/.gitkeep
+
+# Logs
+*.log
+*.pid
+.ngrok_url
+
+# Config with secrets
+ngrok.yml
+config/pipeline_config.json
+!config/pipeline_config.json.example
+
+# Environment
+.env
+.env.local
+
+# Coverage
+htmlcov/
+.coverage
+coverage.xml
