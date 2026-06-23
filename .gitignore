@@ -28,8 +28,7 @@ env/
 Thumbs.db
 
 # Data
-data/processed/*
-!data/processed/.gitkeep
+data/cleaned/*.csv
 
 # Models (track registry CSV, not individual model files)
 models/registry/aim1_non_conversion/*.pkl

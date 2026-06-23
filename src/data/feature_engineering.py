@@ -134,7 +134,7 @@ def build_preprocessor(df: pd.DataFrame, feature_cols: list):
 
 def prepare_aim1_data(test_size=0.2, random_state=42):
     df = pd.read_csv(
-        Path(__file__).resolve().parents[2] / "data" / "processed" / "aim1_patients.csv"
+        Path(__file__).resolve().parents[2] / "data" / "cleaned" / "aim1_patients_imputed.csv"
     )
     df_model, feature_cols = get_aim1_features_target(df)
 
@@ -157,7 +157,7 @@ def prepare_aim1_data(test_size=0.2, random_state=42):
 
 def prepare_aim2_data(test_size=0.2, random_state=42):
     df = pd.read_csv(
-        Path(__file__).resolve().parents[2] / "data" / "processed" / "aim2_contacts.csv"
+        Path(__file__).resolve().parents[2] / "data" / "cleaned" / "aim2_contacts_imputed.csv"
     )
     df_model, feature_cols = get_aim2_features_target(df)
 

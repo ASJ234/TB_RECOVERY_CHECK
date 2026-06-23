@@ -2,7 +2,7 @@ import pandas as pd
 from pathlib import Path
 
 RAW_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
-PROCESSED_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "processed"
+CLEANED_DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "cleaned"
 
 PATIENT_FILE = RAW_DATA_DIR / "MTIPLUS dataset.xlsx"
 DEMOGRAPHIC_FILE = RAW_DATA_DIR / "MTIPLUS DEMOGRAPHIC DATA (1) (1).xlsx"
@@ -107,6 +107,6 @@ def load_merged_dataset_sheet() -> pd.DataFrame:
     return df
 
 
-def get_processsed_path(filename: str) -> Path:
-    PROCESSED_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return PROCESSED_DATA_DIR / filename
+def get_cleaned_path(filename: str) -> Path:
+    CLEANED_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    return CLEANED_DATA_DIR / filename

@@ -4,7 +4,7 @@ from src.data.load_data import (
     load_merged_patients,
     load_followup,
     load_healthy_contacts,
-    get_processsed_path,
+    get_cleaned_path,
 )
 
 
@@ -16,6 +16,8 @@ def _standardize_yes_no(val):
         return "YES"
     if s in ("NO", "N", "FALSE", "NEGATIVE"):
         return "NO"
+    if s in ("#", "", "?", "UNKNOWN", "N/A", "NA"):
+        return np.nan
     return val
 
 
@@ -27,6 +29,8 @@ def _standardize_sex(val):
         return "M"
     if s in ("F", "FEMALE"):
         return "F"
+    if s in ("#", "", "?", "UNKNOWN", "N/A", "NA"):
+        return np.nan
     return val
 
 
@@ -175,15 +179,46 @@ def build_aim2_dataset() -> pd.DataFrame:
     return df
 
 
+TARGET_COLS = {
+    "TARGET_NON_CONVERSION_ANY", "TARGET_NON_CONVERSION_2M", "TARGET_NON_CONVERSION_5M",
+    "TARGET_SYMPTOM_PRESENT",
+}
+
+
+def _impute_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    for col in df.columns:
+        if col in TARGET_COLS:
+            continue
+        if df[col].dtype in (float, int) or df[col].dtype.kind in ("i", "f"):
+            median_val = df[col].median(skipna=True)
+            if pd.notna(median_val):
+                df[col] = df[col].fillna(median_val)
+            else:
+                df[col] = df[col].fillna(0)
+        else:
+            most_freq = df[col].mode(dropna=True)
+            if len(most_freq) > 0:
+                df[col] = df[col].fillna(most_freq.iloc[0])
+            else:
+                df[col] = df[col].fillna("NO")
+    return df
+
+
 def save_clean_datasets():
     aim1 = build_aim1_dataset()
     aim2 = build_aim2_dataset()
 
-    aim1.to_csv(get_processsed_path("aim1_patients.csv"), index=False)
-    aim2.to_csv(get_processsed_path("aim2_contacts.csv"), index=False)
+    aim1.to_csv(get_cleaned_path("aim1_patients.csv"), index=False)
+    aim2.to_csv(get_cleaned_path("aim2_contacts.csv"), index=False)
 
     fu = clean_followup(load_followup())
-    fu.to_csv(get_processsed_path("followup.csv"), index=False)
+    fu.to_csv(get_cleaned_path("followup.csv"), index=False)
+
+    aim1_imp = _impute_features(aim1)
+    aim2_imp = _impute_features(aim2)
+    aim1_imp.to_csv(get_cleaned_path("aim1_patients_imputed.csv"), index=False)
+    aim2_imp.to_csv(get_cleaned_path("aim2_contacts_imputed.csv"), index=False)
 
     print(f"Aim 1 dataset: {len(aim1)} rows, {aim1['TARGET_NON_CONVERSION_ANY'].notna().sum()} labeled")
     print(f"Aim 2 dataset: {len(aim2)} rows, {aim2['TARGET_SYMPTOM_PRESENT'].sum()} symptomatic")

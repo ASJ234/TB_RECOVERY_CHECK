@@ -12,7 +12,12 @@ Machine learning models to predict tuberculosis treatment outcomes and identify 
 ```
 data/
   raw/                          Original Excel files
-  processed/                    Cleaned CSV datasets
+  cleaned/                      Cleaned CSV datasets
+    aim1_patients.csv                Raw-cleaned (target still has NaN where unknown)
+    aim1_patients_imputed.csv        Missing values filled with median/mode
+    aim2_contacts.csv               Raw-cleaned
+    aim2_contacts_imputed.csv        Missing values filled with median/mode
+    followup.csv                    Cleaned follow-up visits
 notebooks/
   01_eda.ipynb                  Exploratory data analysis
   02_aim1_non_conversion.ipynb  Aim 1 modeling notebook

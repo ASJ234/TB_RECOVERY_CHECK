@@ -27,8 +27,8 @@ METADATA_DIR = Path(__file__).resolve().parents[2] / "models" / "metadata"
 
 def _compute_data_hash() -> str:
     hasher = hashlib.sha256()
-    aim1_path = Path(__file__).resolve().parents[2] / "data" / "processed" / "aim1_patients.csv"
-    aim2_path = Path(__file__).resolve().parents[2] / "data" / "processed" / "aim2_contacts.csv"
+    aim1_path = Path(__file__).resolve().parents[2] / "data" / "cleaned" / "aim1_patients_imputed.csv"
+    aim2_path = Path(__file__).resolve().parents[2] / "data" / "cleaned" / "aim2_contacts_imputed.csv"
 
     for path in [aim1_path, aim2_path]:
         if path.exists():
