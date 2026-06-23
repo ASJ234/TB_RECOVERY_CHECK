@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -69,7 +70,6 @@ def train_models(
             learning_rate=0.1,
             scale_pos_weight=(y_train.value_counts().get(0, 1) /
                               max(y_train.value_counts().get(1, 1), 1)),
-            use_label_encoder=False,
             eval_metric="logloss",
             random_state=random_state,
         ),
@@ -104,9 +104,11 @@ def train_models(
                 else:
                     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
 
-                cv_scores = cross_val_score(
-                    pipeline, X_train, y_train, cv=cv, scoring="roc_auc"
-                )
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message="Only one class is present")
+                    cv_scores = cross_val_score(
+                        pipeline, X_train, y_train, cv=cv, scoring="roc_auc"
+                    )
                 auc_mean = float(np.mean(cv_scores))
                 auc_std = float(np.std(cv_scores))
             else:
@@ -118,7 +120,10 @@ def train_models(
 
         try:
             y_pred_proba = pipeline.predict_proba(X_train)[:, 1]
-            train_auc = roc_auc_score(y_train, y_pred_proba)
+            if len(np.unique(y_train)) > 1:
+                train_auc = roc_auc_score(y_train, y_pred_proba)
+            else:
+                train_auc = float("nan")
             train_ap = average_precision_score(y_train, y_pred_proba)
         except Exception:
             train_auc = float("nan")
