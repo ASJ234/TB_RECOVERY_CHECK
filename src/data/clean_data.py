@@ -184,11 +184,13 @@ TARGET_COLS = {
     "TARGET_SYMPTOM_PRESENT",
 }
 
+DATE_COLS = {"BASELINE", "DATE"}
+
 
 def _impute_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     for col in df.columns:
-        if col in TARGET_COLS:
+        if col in TARGET_COLS or col in DATE_COLS:
             continue
         if df[col].dtype in (float, int) or df[col].dtype.kind in ("i", "f"):
             median_val = df[col].median(skipna=True)
