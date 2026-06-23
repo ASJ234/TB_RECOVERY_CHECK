@@ -55,3 +55,8 @@ config/pipeline_config.json
 htmlcov/
 .coverage
 coverage.xml
+
+# Testing 
+models/registry/test_aim
+models/registry/test_aim_smote
+
