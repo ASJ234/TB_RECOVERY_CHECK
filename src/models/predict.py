@@ -1,3 +1,4 @@
+import warnings
 import pandas as pd
 import numpy as np
 import joblib
@@ -25,12 +26,17 @@ def predict(aim: str, model_name: str = "xgboost", version: str = None):
     return pipeline
 
 
+_SKLEARN_WARN = "Found unknown categories in columns"
+
+
 def predict_single(pipeline, features: dict, feature_cols: list) -> dict:
     df = pd.DataFrame([features])
     df = df[feature_cols] if all(c in df.columns for c in feature_cols) else df.reindex(columns=feature_cols)
 
-    proba = pipeline.predict_proba(df)[0]
-    pred = pipeline.predict(df)[0]
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=_SKLEARN_WARN)
+        proba = pipeline.predict_proba(df)[0]
+        pred = pipeline.predict(df)[0]
 
     return {
         "prediction": int(pred),
@@ -41,8 +47,11 @@ def predict_single(pipeline, features: dict, feature_cols: list) -> dict:
 
 def predict_batch(pipeline, df: pd.DataFrame, feature_cols: list) -> pd.DataFrame:
     df = df.reindex(columns=feature_cols)
-    proba = pipeline.predict_proba(df)
-    preds = pipeline.predict(df)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=_SKLEARN_WARN)
+        proba = pipeline.predict_proba(df)
+        preds = pipeline.predict(df)
 
     result = df.copy()
     result["prediction"] = preds

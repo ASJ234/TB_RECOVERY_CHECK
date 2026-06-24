@@ -233,7 +233,8 @@ def train_aim1_strict(
     ])
     final_pipeline.fit(X, y)
 
-    model_path = REGISTRY_DIR / aim / f"{version}_strict_logistic.pkl"
+    strict_aim = f"{aim}_strict"
+    model_path = REGISTRY_DIR / strict_aim / f"{version}_strict_logistic.pkl"
     model_path.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(final_pipeline, model_path)
 
@@ -247,17 +248,16 @@ def train_aim1_strict(
     metadata = {
         "model": "strict_logistic",
         "version": version,
-        "aim": f"{aim}_strict",
+        "aim": strict_aim,
         "timestamp": datetime.now().isoformat(),
         "n_samples": n_samples,
         "n_features": len(feature_cols),
         "feature_cols": feature_cols,
         "C": C,
-        "penalty": "l2",
         "class_weight": "balanced",
         "cv_method": "LOOCV",
         "use_smote": False,
-        "cv_roc_auc": cv_auc,
+        "cv_auc_mean": cv_auc,
         "params_hash": _compute_params_hash(final_pipeline.get_params()),
         "data_hash": _compute_data_hash(X),
         "model_path": str(model_path),

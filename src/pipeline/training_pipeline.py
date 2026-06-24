@@ -87,13 +87,13 @@ def run_aim1(force: bool = False):
         save_scaler(preprocessor_strict, "aim1_strict", strict_meta["version"])
 
         strict_registry_entry = {
-            "aim": "aim1_non_conversion_strict",
+            "aim": strict_meta["aim"],
             "model": "strict_logistic",
             "version": strict_meta["version"],
             "timestamp": strict_meta["timestamp"],
             "n_samples": strict_meta["n_samples"],
-            "train_auc": strict_meta["cv_roc_auc"],
-            "cv_auc_mean": strict_meta["cv_roc_auc"],
+            "train_auc": strict_meta.get("cv_auc_mean", float("nan")),
+            "cv_auc_mean": strict_meta.get("cv_auc_mean", float("nan")),
             "cv_auc_std": float("nan"),
             "train_avg_precision": float("nan"),
             "data_hash": strict_meta["data_hash"],
