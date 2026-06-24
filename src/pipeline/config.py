@@ -19,6 +19,11 @@ class Aim1Config:
         "random_forest",
         "xgboost",
     ])
+    strict_features: list = field(default_factory=lambda: [
+        "SEX", "AGE (YEARS)", "BMI", "baseline_symptom_count",
+    ])
+    strict_target: str = "TARGET_STRICT_M2"
+    strict_C: float = 1.0
 
 
 @dataclass

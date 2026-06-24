@@ -8,6 +8,9 @@ class TestPipelineConfig:
         assert config.aim2.target_column == "TARGET_SYMPTOM_PRESENT"
         assert "xgboost" in config.aim1.models
         assert config.skip_if_data_unchanged is True
+        assert config.aim1.strict_C == 1.0
+        assert "baseline_symptom_count" in config.aim1.strict_features
+        assert config.aim1.strict_target == "TARGET_STRICT_M2"
 
     def test_config_save_and_load(self, tmp_path):
         from src.pipeline.config import PipelineConfig
@@ -16,11 +19,13 @@ class TestPipelineConfig:
         config = PipelineConfig()
         config.aim1.cv_folds = 3
         config.aim2.use_smote = False
+        config.aim1.strict_C = 0.5
         config.save(path=config_path)
 
         loaded = PipelineConfig.load(path=config_path)
         assert loaded.aim1.cv_folds == 3
         assert loaded.aim2.use_smote is False
+        assert loaded.aim1.strict_C == 0.5
 
 
 class TestTrainingPipeline:

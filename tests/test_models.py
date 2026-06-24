@@ -117,7 +117,81 @@ class TestPredict:
         assert len(result) == len(X)
 
 
+class TestTrainAim1Strict:
+    def test_train_aim1_strict_returns_per_fold(self):
+        from src.models.train import train_aim1_strict
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.compose import ColumnTransformer
+
+        np.random.seed(42)
+        n = 11
+        X = pd.DataFrame({
+            "AGE (YEARS)": np.random.uniform(18, 80, n),
+            "BMI": np.random.uniform(15, 35, n),
+            "SEX": np.random.choice(["M", "F"], n),
+            "baseline_symptom_count": np.random.randint(0, 7, n),
+        })
+        y = pd.Series(np.random.choice([0, 1], n))
+
+        preprocessor = ColumnTransformer([
+            ("num", StandardScaler(), ["AGE (YEARS)", "BMI", "baseline_symptom_count"]),
+        ], remainder="drop")
+
+        pipeline, per_fold, metadata = train_aim1_strict(
+            X, y, preprocessor,
+            feature_cols=list(X.columns),
+            sample_ids=[f"P{i:03d}" for i in range(n)],
+            C=1.0,
+        )
+
+        assert len(per_fold) == n
+        assert callable(pipeline.predict)
+        assert metadata["n_samples"] == n
+        assert metadata["model"] == "strict_logistic"
+        assert metadata["use_smote"] is False
+        assert metadata["cv_method"] == "LOOCV"
+        for entry in per_fold:
+            assert "sample_id" in entry
+            assert "true_label" in entry
+            assert "predicted_label" in entry
+            assert "probability" in entry
+            assert "correct" in entry
+
+    def test_train_aim1_strict_no_smote(self):
+        from src.models.train import train_aim1_strict
+        from sklearn.preprocessing import StandardScaler
+        from sklearn.compose import ColumnTransformer
+
+        np.random.seed(42)
+        n = 11
+        X = pd.DataFrame({"AGE (YEARS)": np.random.uniform(18, 80, n)})
+        y = pd.Series([0] * 5 + [1] * 6)
+
+        preprocessor = ColumnTransformer([
+            ("num", StandardScaler(), ["AGE (YEARS)"]),
+        ], remainder="drop")
+
+        _, _, metadata = train_aim1_strict(X, y, preprocessor, ["AGE (YEARS)"], C=1.0)
+        assert metadata["use_smote"] is False
+
+
 class TestEvaluate:
+    def test_evaluate_loocv(self):
+        from src.models.evaluate import evaluate_loocv
+
+        per_fold = [
+            {"sample_id": "P001", "true_label": 1, "predicted_label": 1, "probability": 0.8, "correct": True, "discordant": False},
+            {"sample_id": "P002", "true_label": 0, "predicted_label": 0, "probability": 0.3, "correct": True, "discordant": False},
+            {"sample_id": "P003", "true_label": 1, "predicted_label": 0, "probability": 0.4, "correct": False, "discordant": False},
+            {"sample_id": "P004", "true_label": 0, "predicted_label": 1, "probability": 0.7, "correct": False, "discordant": True},
+        ]
+
+        metrics = evaluate_loocv(per_fold, model_name="test_lr", aim="test_aim", version="v1")
+        assert metrics["accuracy"] == 0.5
+        assert metrics["n_samples"] == 4
+        assert metrics["cv_method"] == "LOOCV"
+        assert "confusion_matrix" in metrics
+
     def test_evaluate_model(self):
         from src.models.evaluate import evaluate_model
         from sklearn.linear_model import LogisticRegression

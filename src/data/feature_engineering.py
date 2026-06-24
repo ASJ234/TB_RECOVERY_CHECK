@@ -41,9 +41,9 @@ def get_aim1_features_target(df: pd.DataFrame):
     df = _derive_bmi(df)
 
     feature_cols = [
-        "SEX", "AGE (YEARS)", "TEMPERATURE CELCIUS",
+        "SEX", "AGE (YEARS)", "TEMPERATURE_CELCIUS",
         "COUGH", "FEVER", "WEIGHT LOSS", "NIGHT SWEATS",
-        "DYSPENA", "CHEST PAIN", "HEMOPTYSIS",
+        "CHEST PAIN", "HEMOPTYSIS",
         "HIV_STATUS", "HAS_DIABETES", "SMOKES", "CONSUMES_ALCOHOL",
         "PAST_TB_DIAGNOSIS", "TB_CONTACT",
         "NUMBER_OF_OCCUPANTS", "BMI", "BASELINE_POSITIVE",
@@ -52,6 +52,31 @@ def get_aim1_features_target(df: pd.DataFrame):
 
     df_model = df[feature_cols + ["TARGET_NON_CONVERSION_ANY"]].copy()
     df_model = df_model[df_model["TARGET_NON_CONVERSION_ANY"].notna()].copy()
+
+    return df_model, feature_cols
+
+
+def get_aim1_strict_features_target(df: pd.DataFrame):
+    df = _derive_bmi(df)
+
+    feature_cols = ["SEX", "AGE (YEARS)", "BMI", "baseline_symptom_count"]
+    feature_cols = [c for c in feature_cols if c in df.columns]
+
+    if "BMI" not in df.columns and "BMI_CALCULATED" in df.columns:
+        df["BMI"] = df["BMI_CALCULATED"]
+
+    if "baseline_symptom_count" not in df.columns:
+        symptom_cols = ["COUGH", "FEVER", "WEIGHT LOSS", "NIGHT SWEATS",
+                         "CHEST PAIN", "HEMOPTYSIS"]
+        df["baseline_symptom_count"] = 0
+        for c in symptom_cols:
+            if c in df.columns:
+                df["baseline_symptom_count"] += df[c].map(
+                    lambda x: 1 if str(x).strip().upper() == "YES" else 0
+                ).fillna(0).astype(int)
+
+    df_model = df[feature_cols + ["TARGET_STRICT_M2", "Sample ID", "M2_DISCORDANT"]].copy()
+    df_model = df_model[df_model["TARGET_STRICT_M2"].notna()].copy()
 
     return df_model, feature_cols
 
@@ -173,6 +198,26 @@ def prepare_aim2_data(test_size=0.2, random_state=42):
 
     preprocessor = build_preprocessor(X_train, feature_cols)
     return X_train, X_test, y_train, y_test, preprocessor, feature_cols
+
+
+def prepare_aim1_strict_data():
+    df = pd.read_csv(
+        Path(__file__).resolve().parents[2] / "data" / "cleaned" / "aim1_patients_strict.csv"
+    )
+    df_model, feature_cols = get_aim1_strict_features_target(df)
+
+    if len(df_model) < 2:
+        return None, None, None, None, None, None
+
+    X = df_model[feature_cols]
+    y = df_model["TARGET_STRICT_M2"].astype(int)
+
+    preprocessor = build_preprocessor(X, feature_cols)
+
+    sample_ids = df_model["Sample ID"].tolist() if "Sample ID" in df_model.columns else None
+    discordant = df_model["M2_DISCORDANT"].tolist() if "M2_DISCORDANT" in df_model.columns else None
+
+    return X, y, preprocessor, feature_cols, sample_ids, discordant
 
 
 def save_scaler(preprocessor, aim: str, version: str):

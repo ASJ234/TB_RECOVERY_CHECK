@@ -10,7 +10,6 @@ class Aim1PredictionRequest(BaseModel):
     FEVER: Optional[str] = None
     WEIGHT_LOSS: Optional[str] = None
     NIGHT_SWEATS: Optional[str] = None
-    DYSPENA: Optional[str] = None
     CHEST_PAIN: Optional[str] = None
     HEMOPTYSIS: Optional[str] = None
     HIV_STATUS: Optional[str] = None
@@ -18,9 +17,17 @@ class Aim1PredictionRequest(BaseModel):
     SMOKES: Optional[str] = None
     CONSUMES_ALCOHOL: Optional[str] = None
     PAST_TB_DIAGNOSIS: Optional[str] = None
-    TB_CONTACT: Optional[str] = None
+    TB_CONTACT: Optional[float] = None
     NUMBER_OF_OCCUPANTS: Optional[float] = None
     BMI: Optional[float] = None
+    BASELINE_POSITIVE: Optional[int] = None
+
+
+class Aim1StrictPredictionRequest(BaseModel):
+    SEX: Optional[str] = Field(None, description="M or F")
+    AGE_YEARS: Optional[float] = Field(None, alias="AGE (YEARS)")
+    BMI: Optional[float] = Field(None, description="Body mass index")
+    baseline_symptom_count: Optional[int] = Field(None, description="Count of baseline symptoms (0-7)")
 
 
 class Aim2PredictionRequest(BaseModel):

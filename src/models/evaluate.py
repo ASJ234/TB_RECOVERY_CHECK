@@ -1,12 +1,13 @@
 import numpy as np
 import pandas as pd
+import json
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.metrics import (
     roc_curve, auc, precision_recall_curve, average_precision_score,
     confusion_matrix, f1_score, recall_score,
-    precision_score, roc_auc_score
+    precision_score, roc_auc_score, accuracy_score,
 )
 from pathlib import Path
 
@@ -79,6 +80,117 @@ def _plot_pr_curve(y_true, y_proba, model_name, aim, version):
     out_dir = REPORTS_DIR / aim
     out_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_dir / f"pr_{model_name}_{version}.png", dpi=100, bbox_inches="tight")
+    plt.close(fig)
+
+
+def evaluate_loocv(per_fold: list, model_name: str = "strict_logistic",
+                    aim: str = "aim1_non_conversion", version: str = "v1"):
+    df = pd.DataFrame(per_fold)
+
+    y_true = df["true_label"].values
+    y_pred = df["predicted_label"].values
+    y_proba = df["probability"].values
+
+    accuracy = float(accuracy_score(y_true, y_pred))
+    precision = float(precision_score(y_true, y_pred, zero_division=0))
+    recall = float(recall_score(y_true, y_pred, zero_division=0))
+    f1 = float(f1_score(y_true, y_pred, zero_division=0))
+
+    roc_auc_val = float("nan")
+    if len(np.unique(y_true)) > 1:
+        try:
+            roc_auc_val = float(roc_auc_score(y_true, y_proba))
+        except Exception:
+            pass
+
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+
+    metrics = {
+        "model": model_name,
+        "version": version,
+        "aim": aim,
+        "cv_method": "LOOCV",
+        "n_samples": len(per_fold),
+        "accuracy": accuracy,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "roc_auc": roc_auc_val,
+        "confusion_matrix": {
+            "true_negatives": int(tn),
+            "false_positives": int(fp),
+            "false_negatives": int(fn),
+            "true_positives": int(tp),
+        },
+    }
+
+    print(f"\n  LOOCV Results ({model_name} {version}):")
+    print(f"    Accuracy:  {accuracy:.3f} ({int(tn + tp)}/{len(per_fold)})")
+    print(f"    Precision: {precision:.3f}")
+    print(f"    Recall:    {recall:.3f}")
+    print(f"    F1:        {f1:.3f}")
+    print(f"    AUC-ROC:   {roc_auc_val:.3f}" if not np.isnan(roc_auc_val) else "    AUC-ROC:   N/A")
+    print(f"    Confusion: TN={int(tn)} FP={int(fp)} FN={int(fn)} TP={int(tp)}")
+
+    print("\n  Per-fold predictions:")
+    print(f"  {'Sample ID':25s} {'True':5s} {'Pred':5s} {'Prob':6s} {'Disc':5s}")
+    print(f"  {'-'*25} {'-'*5} {'-'*5} {'-'*6} {'-'*5}")
+    for row in per_fold:
+        marker = " *" if row["discordant"] else "  "
+        print(f"  {row['sample_id']:25s} {row['true_label']:5d} {row['predicted_label']:5d} "
+              f"{row['probability']:.4f} {'Y' if row['discordant'] else 'N':5s}{marker}")
+
+    print("\n  Summary:")
+    correct = df["correct"].sum()
+    failures_correct = df[(df["true_label"] == 1) & (df["correct"])].shape[0]
+    failures_total = df[df["true_label"] == 1].shape[0]
+    converted_correct = df[(df["true_label"] == 0) & (df["correct"])].shape[0]
+    converted_total = df[df["true_label"] == 0].shape[0]
+    false_pos = df[(df["true_label"] == 0) & (df["predicted_label"] == 1)].shape[0]
+    false_neg = df[(df["true_label"] == 1) & (df["predicted_label"] == 0)].shape[0]
+    print(f"    Correct: {int(correct)}/{len(per_fold)} ({accuracy*100:.1f}%)")
+    print(f"    Failures detected: {failures_correct}/{failures_total}")
+    print(f"    Converted detected: {converted_correct}/{converted_total}")
+    print(f"    False alarms (FP): {false_pos}")
+    print(f"    Missed failures (FN): {false_neg}")
+
+    _plot_loocv_cm(y_true, y_pred, model_name, aim, version)
+
+    report = {
+        "metrics": metrics,
+        "per_fold": per_fold,
+    }
+    out_dir = REPORTS_DIR / aim
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report_path = out_dir / f"loocv_{model_name}_{version}.json"
+    with open(report_path, "w") as f:
+        json.dump(report, f, indent=2)
+    print(f"    Report saved: {report_path}")
+
+    return metrics
+
+
+def _plot_loocv_cm(y_true, y_pred, model_name, aim, version):
+    cm = confusion_matrix(y_true, y_pred)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    im = ax.imshow(cm, interpolation="nearest", cmap="Blues")
+    ax.figure.colorbar(im, ax=ax)
+    ax.set(xticks=[0, 1], yticks=[0, 1],
+           xticklabels=["Converted", "Failure"],
+           yticklabels=["Converted", "Failure"],
+           xlabel="Predicted", ylabel="Actual")
+    ax.set_title(f"LOOCV Confusion Matrix - {model_name} ({version})")
+
+    thresh = cm.max() / 2.0
+    for i in range(2):
+        for j in range(2):
+            ax.text(j, i, format(cm[i, j], "d"),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+
+    out_dir = REPORTS_DIR / aim
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_dir / f"loocv_cm_{model_name}_{version}.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
 
 

@@ -58,7 +58,7 @@ def train_models(
 
     models = {
         "logistic_regression": LogisticRegression(
-            max_iter=1000, C=0.1, class_weight="balanced", random_state=random_state
+            max_iter=1000, C=0.1, l1_ratio=0, class_weight="balanced", random_state=random_state
         ),
         "random_forest": RandomForestClassifier(
             n_estimators=100, max_depth=3, class_weight="balanced",
@@ -163,6 +163,114 @@ def train_models(
               f"Train AUC={train_auc:.3f}")
 
     return results, trained_models
+
+
+def train_aim1_strict(
+    X: pd.DataFrame,
+    y: pd.Series,
+    preprocessor,
+    feature_cols: list,
+    sample_ids: list = None,
+    discordant: list = None,
+    C: float = 1.0,
+    random_state: int = 42,
+):
+    n_samples = len(X)
+    aim = "aim1_non_conversion"
+    version = _get_version(f"{aim}_strict")
+
+    from sklearn.model_selection import LeaveOneOut
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import Pipeline
+
+    loo = LeaveOneOut()
+
+    per_fold = []
+    y_true_all = []
+    y_pred_all = []
+    y_proba_all = []
+
+    for train_idx, test_idx in loo.split(X):
+        X_train_fold = X.iloc[train_idx]
+        y_train_fold = y.iloc[train_idx]
+        X_test_fold = X.iloc[test_idx]
+        y_test_fold = y.iloc[test_idx]
+
+        fold_pipeline = Pipeline([
+            ("preprocessor", preprocessor),
+            ("classifier", LogisticRegression(
+                C=C, l1_ratio=0, class_weight="balanced",
+                max_iter=1000, random_state=random_state,
+            )),
+        ])
+        fold_pipeline.fit(X_train_fold, y_train_fold)
+
+        y_pred = fold_pipeline.predict(X_test_fold)[0]
+        y_proba = fold_pipeline.predict_proba(X_test_fold)[0][1]
+
+        sample_id = sample_ids[test_idx[0]] if sample_ids else str(test_idx[0])
+        is_discordant = bool(discordant[test_idx[0]]) if discordant else False
+
+        per_fold.append({
+            "sample_id": sample_id,
+            "fold": len(per_fold) + 1,
+            "true_label": int(y_test_fold.iloc[0]),
+            "predicted_label": int(y_pred),
+            "probability": float(y_proba),
+            "correct": int(y_test_fold.iloc[0]) == int(y_pred),
+            "discordant": is_discordant,
+        })
+        y_true_all.append(int(y_test_fold.iloc[0]))
+        y_pred_all.append(int(y_pred))
+        y_proba_all.append(float(y_proba))
+
+    final_pipeline = Pipeline([
+        ("preprocessor", preprocessor),
+        ("classifier", LogisticRegression(
+            C=C, l1_ratio=0, class_weight="balanced",
+            max_iter=1000, random_state=random_state,
+        )),
+    ])
+    final_pipeline.fit(X, y)
+
+    model_path = REGISTRY_DIR / aim / f"{version}_strict_logistic.pkl"
+    model_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(final_pipeline, model_path)
+
+    cv_auc = float("nan")
+    if len(np.unique(y_true_all)) > 1:
+        try:
+            cv_auc = float(roc_auc_score(y_true_all, y_proba_all))
+        except Exception:
+            cv_auc = float("nan")
+
+    metadata = {
+        "model": "strict_logistic",
+        "version": version,
+        "aim": f"{aim}_strict",
+        "timestamp": datetime.now().isoformat(),
+        "n_samples": n_samples,
+        "n_features": len(feature_cols),
+        "feature_cols": feature_cols,
+        "C": C,
+        "penalty": "l2",
+        "class_weight": "balanced",
+        "cv_method": "LOOCV",
+        "use_smote": False,
+        "cv_roc_auc": cv_auc,
+        "params_hash": _compute_params_hash(final_pipeline.get_params()),
+        "data_hash": _compute_data_hash(X),
+        "model_path": str(model_path),
+    }
+
+    METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    meta_path = METADATA_DIR / f"{aim}_strict_logistic_{version}.json"
+    with open(meta_path, "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print(f"  strict_logistic ({version}): LOOCV AUC={cv_auc:.3f}")
+
+    return final_pipeline, per_fold, metadata
 
 
 def get_champion_model(aim: str, metric: str = "cv_auc_mean"):

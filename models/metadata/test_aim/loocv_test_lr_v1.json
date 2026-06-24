@@ -1,0 +1,54 @@
+{
+  "metrics": {
+    "model": "test_lr",
+    "version": "v1",
+    "aim": "test_aim",
+    "cv_method": "LOOCV",
+    "n_samples": 4,
+    "accuracy": 0.5,
+    "precision": 0.5,
+    "recall": 0.5,
+    "f1": 0.5,
+    "roc_auc": 0.75,
+    "confusion_matrix": {
+      "true_negatives": 1,
+      "false_positives": 1,
+      "false_negatives": 1,
+      "true_positives": 1
+    }
+  },
+  "per_fold": [
+    {
+      "sample_id": "P001",
+      "true_label": 1,
+      "predicted_label": 1,
+      "probability": 0.8,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "P002",
+      "true_label": 0,
+      "predicted_label": 0,
+      "probability": 0.3,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "P003",
+      "true_label": 1,
+      "predicted_label": 0,
+      "probability": 0.4,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "P004",
+      "true_label": 0,
+      "predicted_label": 1,
+      "probability": 0.7,
+      "correct": false,
+      "discordant": true
+    }
+  ]
+}

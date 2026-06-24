@@ -5,6 +5,7 @@ import io
 
 from src.api.schemas import (
     Aim1PredictionRequest,
+    Aim1StrictPredictionRequest,
     Aim2PredictionRequest,
     PredictionResponse,
     BatchPredictionRequest,
@@ -28,15 +29,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+FEATURE_MAP_AIM1_STRICT = {
+    "SEX": "SEX",
+    "AGE_YEARS": "AGE (YEARS)",
+    "AGE (YEARS)": "AGE (YEARS)",
+    "BMI": "BMI",
+    "baseline_symptom_count": "baseline_symptom_count",
+}
+
 FEATURE_MAP_AIM1 = {
     "SEX": "SEX",
     "AGE_YEARS": "AGE (YEARS)",
-    "TEMPERATURE_CELCIUS": "TEMPERATURE CELCIUS",
+    "TEMPERATURE_CELCIUS": "TEMPERATURE_CELCIUS",
     "COUGH": "COUGH",
     "FEVER": "FEVER",
     "WEIGHT_LOSS": "WEIGHT LOSS",
     "NIGHT_SWEATS": "NIGHT SWEATS",
-    "DYSPENA": "DYSPENA",
     "CHEST_PAIN": "CHEST PAIN",
     "HEMOPTYSIS": "HEMOPTYSIS",
     "HIV_STATUS": "HIV_STATUS",
@@ -47,6 +55,7 @@ FEATURE_MAP_AIM1 = {
     "TB_CONTACT": "TB_CONTACT",
     "NUMBER_OF_OCCUPANTS": "NUMBER_OF_OCCUPANTS",
     "BMI": "BMI",
+    "BASELINE_POSITIVE": "BASELINE_POSITIVE",
 }
 
 
@@ -72,6 +81,31 @@ def predict_aim1(request: Aim1PredictionRequest):
     features = request.model_dump(by_alias=True)
     mapped = {}
     for api_key, model_key in FEATURE_MAP_AIM1.items():
+        val = features.get(api_key) or features.get(model_key)
+        if val is not None:
+            mapped[model_key] = val
+
+    result = predict_single(pipeline, mapped, feature_cols)
+    return PredictionResponse(
+        prediction=result["prediction"],
+        probability=result["probability"],
+        confidence=result["confidence"],
+        model_version=version,
+        model_name=model_name,
+    )
+
+
+@app.post("/predict/aim1/strict", response_model=PredictionResponse)
+def predict_aim1_strict(request: Aim1StrictPredictionRequest):
+    try:
+        pipeline, version, model_name = get_model("aim1_non_conversion_strict")
+        feature_cols = get_feature_cols("aim1_non_conversion_strict")
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    features = request.model_dump(by_alias=True)
+    mapped = {}
+    for api_key, model_key in FEATURE_MAP_AIM1_STRICT.items():
         val = features.get(api_key) or features.get(model_key)
         if val is not None:
             mapped[model_key] = val

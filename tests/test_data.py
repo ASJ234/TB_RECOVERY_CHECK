@@ -9,6 +9,7 @@ from src.data.clean_data import (
     clean_patients,
     clean_followup,
     build_aim1_dataset,
+    build_aim1_strict_dataset,
     build_aim2_dataset,
 )
 
@@ -72,6 +73,29 @@ class TestCleanData:
     def test_build_aim2_dataset(self):
         df = build_aim2_dataset()
         assert "TARGET_SYMPTOM_PRESENT" in df.columns
+
+    def test_build_aim1_strict_dataset(self):
+        df = build_aim1_strict_dataset()
+        assert "TARGET_STRICT_M2" in df.columns
+        assert "baseline_symptom_count" in df.columns
+        assert "M2_DISCORDANT" in df.columns
+        n_labeled = df["TARGET_STRICT_M2"].notna().sum()
+        assert n_labeled == 11
+        n_failures = df["TARGET_STRICT_M2"].sum()
+        assert n_failures == 6
+        assert df["baseline_symptom_count"].min() >= 0
+
+    def test_baseline_symptom_count(self):
+        df = build_aim1_strict_dataset()
+        labeled = df[df["TARGET_STRICT_M2"].notna()]
+        assert labeled["baseline_symptom_count"].notna().all()
+        assert labeled["baseline_symptom_count"].between(0, 7).all()
+
+    def test_culture_based_mapping(self):
+        df = build_aim1_strict_dataset()
+        for _, row in df.iterrows():
+            if pd.notna(row["TARGET_STRICT_M2"]):
+                assert row["TARGET_STRICT_M2"] in (0, 1)
 
 
 class TestFeatureEngineering:

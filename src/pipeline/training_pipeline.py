@@ -10,15 +10,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src.data.clean_data import save_clean_datasets
 from src.data.feature_engineering import (
     prepare_aim1_data,
+    prepare_aim1_strict_data,
     prepare_aim2_data,
     save_scaler,
 )
 from src.models.train import (
     train_models,
+    train_aim1_strict,
     update_registry_csv,
     get_champion_model,
 )
-from src.models.evaluate import evaluate_model
+from src.models.evaluate import evaluate_model, evaluate_loocv
 from src.pipeline.config import get_config
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "models" / "registry"
@@ -51,19 +53,68 @@ def _save_data_hash(current_hash: str):
 
 def run_aim1(force: bool = False):
     print("=" * 60)
-    print("AIM 1: Predicting TB non-conversion at M2/M6")
+    print("AIM 1: Predicting TB non-conversion at M2/M5")
     print("=" * 60)
 
     config = get_config()
     aim1_cfg = config.aim1
 
+    # ---------------------------------------------------------------
+    # Phase 1 — Strict model (culture-based labels, n=11, LR + LOOCV)
+    # ---------------------------------------------------------------
+    print("\n--- Phase 1: Strict Model (exploratory, n=11) ---")
+    X_strict, y_strict, preprocessor_strict, strict_feature_cols, sample_ids, discordant = (
+        prepare_aim1_strict_data()
+    )
+
+    if X_strict is not None and len(X_strict) >= 2:
+        print(f"  Strict samples: {len(X_strict)}")
+        print(f"  Features: {strict_feature_cols}")
+        print(f"  Class distribution: {y_strict.value_counts().to_dict()}")
+
+        pipeline_strict, per_fold, strict_meta = train_aim1_strict(
+            X_strict, y_strict, preprocessor_strict,
+            strict_feature_cols, sample_ids, discordant,
+            C=aim1_cfg.strict_C,
+            random_state=aim1_cfg.random_state,
+        )
+
+        evaluate_loocv(
+            per_fold, model_name="strict_logistic",
+            aim="aim1_non_conversion", version=strict_meta["version"],
+        )
+
+        save_scaler(preprocessor_strict, "aim1_strict", strict_meta["version"])
+
+        strict_registry_entry = {
+            "aim": "aim1_non_conversion_strict",
+            "model": "strict_logistic",
+            "version": strict_meta["version"],
+            "timestamp": strict_meta["timestamp"],
+            "n_samples": strict_meta["n_samples"],
+            "train_auc": strict_meta["cv_roc_auc"],
+            "cv_auc_mean": strict_meta["cv_roc_auc"],
+            "cv_auc_std": float("nan"),
+            "train_avg_precision": float("nan"),
+            "data_hash": strict_meta["data_hash"],
+            "params_hash": strict_meta["params_hash"],
+            "model_path": strict_meta["model_path"],
+        }
+        update_registry_csv({"strict_logistic": strict_registry_entry}, "aim1_non_conversion_strict")
+    else:
+        print("  Insufficient strict-labeled data for Aim 1. Skipping strict model.")
+
+    # ---------------------------------------------------------------
+    # Phase 2 — Imputed model (sensitivity analysis, n=218)
+    # ---------------------------------------------------------------
+    print("\n--- Phase 2: Imputed Model (sensitivity analysis, n=218) ---")
     X_train, X_test, y_train, y_test, preprocessor, feature_cols = prepare_aim1_data(
         test_size=aim1_cfg.test_size,
         random_state=aim1_cfg.random_state,
     )
 
     if X_train is None or len(X_train) < 2:
-        print("  Insufficient labeled data for Aim 1. Skipping.")
+        print("  Insufficient data for Aim 1 imputed model. Skipping.")
         return
 
     print(f"  Training samples: {len(X_train)}, Test samples: {len(X_test)}")
@@ -88,7 +139,7 @@ def run_aim1(force: bool = False):
 
     champion = get_champion_model("aim1_non_conversion")
     if champion:
-        print(f"\n  Champion model: {champion['model']} ({champion['version']}) "
+        print(f"\n  Champion model (imputed): {champion['model']} ({champion['version']}) "
               f"AUC={champion['cv_auc_mean']:.3f}")
 
 
