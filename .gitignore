@@ -42,6 +42,9 @@ models/metadata/*.json
 *.pid
 .ngrok_url
 
+# Insomnia API test collection
+tb_recovery_insomnia.json
+
 # Config with secrets
 ngrok.yml
 config/pipeline_config.json
