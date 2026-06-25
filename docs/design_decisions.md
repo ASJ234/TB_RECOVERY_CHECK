@@ -430,4 +430,18 @@ make train-monitor    # train + run drift checks
 make mlflow-ui        # view drift metrics
 ```
 
+### Standalone vs Full Pipeline
+
+The monitoring commands differ in scope:
+
+| Command | Trains models | Generates synthetic data | Data drift check | Model drift check | Saves report | Logs to MLflow | Auto-retrain |
+|---|---|---|---|---|---|---|---|
+| `make synthetic` | — | All 3 variants (aim1, aim2, aim1_strict) | — | — | — | — | — |
+| `make drift-check` | — | — | aim1 only (vs `_drifted.csv`) | — | yes | — | — |
+| `make train-monitor` | yes | All 3 variants | aim1 + aim2 (vs `_drifted.csv`) | aim1 + aim2 | yes | yes | config-driven* |
+
+\* **Auto-retrain**: Controlled by `monitoring.auto_retrain` and `monitoring.log_only` in `config/pipeline_config.json`. When both `auto_retrain: true` and `log_only: false` and drift is detected, the pipeline automatically re-runs `run_aim1()` / `run_aim2()` with `--force` after the drift check.
+
+Use `make synthetic` + `make drift-check` for a quick validation without retraining. Use `make train-monitor` for the full end-to-end pipeline.
+
 Run `make` or `make help` to print the full list of targets with descriptions.

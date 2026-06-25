@@ -27,7 +27,7 @@ from src.pipeline.config import get_config
 from src.monitoring.synthetic_drift import generate_all_synthetic_variants
 from src.monitoring.data_drift import compute_data_drift
 from src.monitoring.model_drift import compute_model_drift
-from src.monitoring.reporting import generate_drift_report, save_drift_report, log_to_mlflow
+from src.monitoring.reporting import generate_drift_report, save_drift_report, log_to_mlflow, should_retrain
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "models" / "registry"
 METADATA_DIR = Path(__file__).resolve().parents[2] / "models" / "metadata"
@@ -283,6 +283,14 @@ def run_monitoring(force: bool = False):
             save_drift_report(report)
             log_to_mlflow(report, run_name=f"pipeline_drift_aim{aim_label}")
             print("  Drift report saved")
+
+            if should_retrain(report, log_only=mon_cfg.log_only) and mon_cfg.auto_retrain:
+                print(f"  Drift detected — triggering retrain for aim {aim_label}")
+                if aim_key == "aim1_non_conversion":
+                    run_aim1(force=True)
+                elif aim_key == "aim2_contact_risk":
+                    run_aim2(force=True)
+                print(f"  Retrain complete for aim {aim_label}")
         else:
             print(f"  No synthetic data found at {synthetic_csv}. Run with synthetic_demo.enabled=true or generate manually.")
     print("\nMonitoring complete.")
