@@ -174,9 +174,9 @@ def train_aim1_strict(
     discordant: list = None,
     C: float = 1.0,
     random_state: int = 42,
+    aim: str = "aim1_non_conversion",
 ):
     n_samples = len(X)
-    aim = "aim1_non_conversion"
     version = _get_version(f"{aim}_strict")
 
     from sklearn.model_selection import LeaveOneOut

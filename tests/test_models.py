@@ -142,6 +142,7 @@ class TestTrainAim1Strict:
             feature_cols=list(X.columns),
             sample_ids=[f"P{i:03d}" for i in range(n)],
             C=1.0,
+            aim="test_strict",
         )
 
         assert len(per_fold) == n
@@ -171,7 +172,9 @@ class TestTrainAim1Strict:
             ("num", StandardScaler(), ["AGE (YEARS)"]),
         ], remainder="drop")
 
-        _, _, metadata = train_aim1_strict(X, y, preprocessor, ["AGE (YEARS)"], C=1.0)
+        _, _, metadata = train_aim1_strict(
+            X, y, preprocessor, ["AGE (YEARS)"], C=1.0, aim="test_strict"
+        )
         assert metadata["use_smote"] is False
 
 

@@ -1,0 +1,121 @@
+{
+  "metrics": {
+    "model": "strict_logistic",
+    "version": "v5",
+    "aim": "aim1_non_conversion",
+    "cv_method": "LOOCV",
+    "n_samples": 11,
+    "accuracy": 0.45454545454545453,
+    "precision": 0.5,
+    "recall": 0.6666666666666666,
+    "f1": 0.5714285714285714,
+    "roc_auc": 0.1333333333333333,
+    "confusion_matrix": {
+      "true_negatives": 1,
+      "false_positives": 4,
+      "false_negatives": 2,
+      "true_positives": 4
+    }
+  },
+  "per_fold": [
+    {
+      "sample_id": "MTI-P-003-KSY",
+      "fold": 1,
+      "true_label": 1,
+      "predicted_label": 1,
+      "probability": 0.5547773126736055,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-035",
+      "fold": 2,
+      "true_label": 0,
+      "predicted_label": 0,
+      "probability": 0.4203640045465275,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-030",
+      "fold": 3,
+      "true_label": 1,
+      "predicted_label": 1,
+      "probability": 0.5821642914929807,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-028",
+      "fold": 4,
+      "true_label": 0,
+      "predicted_label": 1,
+      "probability": 0.6773485165583993,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-003",
+      "fold": 5,
+      "true_label": 1,
+      "predicted_label": 0,
+      "probability": 0.20525786563515258,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-033",
+      "fold": 6,
+      "true_label": 1,
+      "predicted_label": 1,
+      "probability": 0.5217696371453495,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-0019-KAW",
+      "fold": 7,
+      "true_label": 0,
+      "predicted_label": 1,
+      "probability": 0.6685336714488789,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-0022-KAW",
+      "fold": 8,
+      "true_label": 0,
+      "predicted_label": 1,
+      "probability": 0.9159933566419437,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-0025-KAW",
+      "fold": 9,
+      "true_label": 1,
+      "predicted_label": 1,
+      "probability": 0.6410864611238887,
+      "correct": true,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-0024-KAW",
+      "fold": 10,
+      "true_label": 1,
+      "predicted_label": 0,
+      "probability": 0.3977999975798573,
+      "correct": false,
+      "discordant": false
+    },
+    {
+      "sample_id": "MTI-P-0013-RBG",
+      "fold": 11,
+      "true_label": 0,
+      "predicted_label": 1,
+      "probability": 0.7743004734004858,
+      "correct": false,
+      "discordant": true
+    }
+  ]
+}
