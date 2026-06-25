@@ -13,7 +13,8 @@ from src.api.schemas import (
     HealthResponse,
 )
 from src.api.dependencies import get_model, get_feature_cols, clear_cache
-from src.models.predict import predict_single, predict_batch, get_model_info
+from src.models.predict import predict_single, predict_batch, get_model_info, METADATA_DIR
+import json
 
 app = FastAPI(
     title="TB Recovery Prediction API",
@@ -37,6 +38,21 @@ FEATURE_MAP_AIM1_STRICT = {
     "baseline_symptom_count": "baseline_symptom_count",
 }
 
+FEATURE_MAP_AIM2 = {
+    "AGE": "AGE",
+    "SEX": "SEX",
+    "WEIGHT": "WEIGHT",
+    "TEMPERATURE": "TEMPERATURE",
+    "COUGH": "COUGH",
+    "FEVER": "FEVER",
+    "WEIGHT_LOSS": "WEIGHT LOSS",
+    "NIGHT_SWEATS": "NIGHT SWEATS",
+    "DYSPNEA": "DYSPNEA",
+    "CHEST_PAIN": "CHEST PAIN",
+    "HEMOPTYSIS": "HEMOPTYSIS",
+    "HIV_STATUS": "HIV STATUS",
+}
+
 FEATURE_MAP_AIM1 = {
     "SEX": "SEX",
     "AGE_YEARS": "AGE (YEARS)",
@@ -57,6 +73,15 @@ FEATURE_MAP_AIM1 = {
     "BMI": "BMI",
     "BASELINE_POSITIVE": "BASELINE_POSITIVE",
 }
+
+
+def get_strict_model_info():
+    METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    strict_metas = sorted(METADATA_DIR.glob("aim1_non_conversion_strict_logistic_*.json"))
+    if not strict_metas:
+        return None
+    with open(strict_metas[-1]) as f:
+        return json.load(f)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -129,7 +154,11 @@ def predict_aim2(request: Aim2PredictionRequest):
         raise HTTPException(status_code=503, detail=str(e))
 
     features = request.model_dump()
-    mapped = {k: v for k, v in features.items() if v is not None}
+    mapped = {}
+    for api_key, model_key in FEATURE_MAP_AIM2.items():
+        val = features.get(api_key)
+        if val is not None:
+            mapped[model_key] = val
 
     result = predict_single(pipeline, mapped, feature_cols)
     return PredictionResponse(
@@ -182,9 +211,13 @@ async def predict_csv(file: UploadFile = File(...), aim: str = "1"):
 
 
 @app.get("/model/info", response_model=ModelInfoResponse)
-def model_info(aim: str = "1"):
-    aim_key = "aim1_non_conversion" if aim == "1" else "aim2_contact_risk"
-    info = get_model_info(aim_key)
+def model_info(aim: str = "1", params: str = None):
+    if params == "strict":
+        aim_key = "aim1_non_conversion_strict"
+        info = get_strict_model_info()
+    else:
+        aim_key = "aim1_non_conversion" if aim == "1" else "aim2_contact_risk"
+        info = get_model_info(aim_key)
     if info is None:
         raise HTTPException(status_code=404, detail=f"No trained model for aim {aim}")
     return ModelInfoResponse(

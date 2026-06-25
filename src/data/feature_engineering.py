@@ -115,8 +115,12 @@ def _categorize_features(df: pd.DataFrame, feature_cols: list):
     return numeric_cols, categorical_cols, binary_cols
 
 
-def build_preprocessor(df: pd.DataFrame, feature_cols: list):
-    numeric_cols, categorical_cols, binary_cols = _categorize_features(df, feature_cols)
+def build_preprocessor(df: pd.DataFrame, feature_cols: list,
+                       numeric_cols: list = None,
+                       categorical_cols: list = None,
+                       binary_cols: list = None):
+    if numeric_cols is None or categorical_cols is None or binary_cols is None:
+        numeric_cols, categorical_cols, binary_cols = _categorize_features(df, feature_cols)
 
     transformers = []
 
@@ -212,7 +216,12 @@ def prepare_aim1_strict_data():
     X = df_model[feature_cols]
     y = df_model["TARGET_STRICT_M2"].astype(int)
 
-    preprocessor = build_preprocessor(X, feature_cols)
+    preprocessor = build_preprocessor(
+        X, feature_cols,
+        numeric_cols=["AGE (YEARS)", "BMI", "baseline_symptom_count"],
+        categorical_cols=[],
+        binary_cols=["SEX"],
+    )
 
     sample_ids = df_model["Sample ID"].tolist() if "Sample ID" in df_model.columns else None
     discordant = df_model["M2_DISCORDANT"].tolist() if "M2_DISCORDANT" in df_model.columns else None
