@@ -2,6 +2,8 @@
 import sys
 import argparse
 import hashlib
+import joblib
+import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
@@ -22,6 +24,10 @@ from src.models.train import (
 )
 from src.models.evaluate import evaluate_model, evaluate_loocv
 from src.pipeline.config import get_config
+from src.monitoring.synthetic_drift import generate_all_synthetic_variants
+from src.monitoring.data_drift import compute_data_drift
+from src.monitoring.model_drift import compute_model_drift
+from src.monitoring.reporting import generate_drift_report, save_drift_report, log_to_mlflow
 
 REGISTRY_DIR = Path(__file__).resolve().parents[2] / "models" / "registry"
 METADATA_DIR = Path(__file__).resolve().parents[2] / "models" / "metadata"
@@ -186,6 +192,102 @@ def run_aim2(force: bool = False):
               f"AUC={champion['cv_auc_mean']:.3f}")
 
 
+def run_monitoring(force: bool = False):
+    config = get_config()
+    mon_cfg = config.monitoring
+    if not mon_cfg.enabled:
+        print("\nMonitoring disabled in config. Skipping.")
+        return
+
+    print("\n" + "=" * 60)
+    print("Model & Data Drift Monitoring")
+    print("=" * 60)
+
+    if mon_cfg.synthetic_demo.enabled:
+        print("\n--- Generating synthetic drift data ---")
+        for source, prefix in [
+            ("aim1_patients_imputed.csv", "aim1"),
+            ("aim2_contacts_imputed.csv", "aim2"),
+            ("aim1_patients_strict.csv", "aim1_strict"),
+        ]:
+            try:
+                generate_all_synthetic_variants(
+                    source, output_prefix=prefix,
+                    random_state=config.aim1.random_state,
+                )
+            except FileNotFoundError as e:
+                print(f"  Skipping {source}: {e}")
+
+    for aim_label, aim_key, ref_csv, target_col, prefix in [
+        ("1", "aim1_non_conversion", "aim1_patients_imputed.csv", "TARGET_NON_CONVERSION_ANY", "aim1"),
+        ("2", "aim2_contact_risk", "aim2_contacts_imputed.csv", "TARGET_SYMPTOM_PRESENT", "aim2"),
+    ]:
+        print(f"\n--- Drift check for aim {aim_label} ({aim_key}) ---")
+        ref_path = Path(__file__).resolve().parents[2] / "data" / "cleaned" / ref_csv
+        if not ref_path.exists():
+            print(f"  Reference not found: {ref_path}. Skipping.")
+            continue
+
+        reference_df = pd.read_csv(ref_path)
+
+        champion = get_champion_model(aim_key)
+        if champion is None:
+            print(f"  No trained model for {aim_key}. Skipping model drift.")
+            continue
+
+        feat_cols = champion.get("feature_cols", [])
+        target_in_ref = target_col in reference_df.columns
+
+        synthetic_csv = (
+            Path(__file__).resolve().parents[2] / "data" / "synthetic" / f"{prefix}_drifted.csv"
+        )
+        if synthetic_csv.exists():
+            current_df = pd.read_csv(synthetic_csv)
+            print("  Comparing reference vs synthetic drifted data")
+            available = [c for c in feat_cols if c in reference_df.columns and c in current_df.columns]
+            data_result = compute_data_drift(
+                reference_df, current_df,
+                feature_cols=available,
+                psi_bins=mon_cfg.psi_bins,
+            )
+            dd_status = "DRIFT DETECTED" if data_result.get("data_drift_detected") else "no drift"
+            print(f"  Data drift: {dd_status} ({data_result.get('drift_ratio', 0):.2%} features drifted)")
+
+            model_result = None
+            if target_in_ref and target_col in current_df.columns:
+                try:
+                    pipeline = joblib.load(champion["model_path"])
+                    ref_data = reference_df[feat_cols]
+                    ref_labels = reference_df[target_col].astype(int)
+                    cur_data = current_df[feat_cols]
+                    cur_labels = current_df[target_col].astype(int)
+                    model_result = compute_model_drift(
+                        pipeline, ref_data, ref_labels, cur_data, cur_labels,
+                        feature_cols=feat_cols,
+                        auc_drop_threshold=mon_cfg.model_drift_thresholds.auc_drop,
+                        prediction_psi_threshold=mon_cfg.model_drift_thresholds.prediction_psi,
+                    )
+                    md_status = "DRIFT DETECTED" if model_result.get("model_drift_detected") else "no drift"
+                    auc_drop = model_result.get("auc_drop")
+                    drop_str = f", AUC drop: {auc_drop:.3f}" if auc_drop is not None else ""
+                    print(f"  Model drift: {md_status}{drop_str}")
+                except Exception as e:
+                    print(f"  Model drift check failed: {e}")
+            else:
+                print("  Model drift skipped (missing target column in synthetic data)")
+
+            report = generate_drift_report(
+                data_drift_result=data_result,
+                model_drift_result=model_result,
+            )
+            save_drift_report(report)
+            log_to_mlflow(report, run_name=f"pipeline_drift_aim{aim_label}")
+            print("  Drift report saved")
+        else:
+            print(f"  No synthetic data found at {synthetic_csv}. Run with synthetic_demo.enabled=true or generate manually.")
+    print("\nMonitoring complete.")
+
+
 def main():
     parser = argparse.ArgumentParser(description="TB Recovery - Model Training Pipeline")
     parser.add_argument("--aim", choices=["1", "2", "all"], default="all",
@@ -194,6 +296,8 @@ def main():
                         help="Force retraining even if data unchanged")
     parser.add_argument("--skip-data-check", action="store_true",
                         help="Skip data change detection")
+    parser.add_argument("--monitoring", action="store_true",
+                        help="Run drift monitoring after training")
     args = parser.parse_args()
 
     print(f"TB Recovery Pipeline - {datetime.now().isoformat()}")
@@ -214,6 +318,9 @@ def main():
 
     if args.aim in ("2", "all"):
         run_aim2(force=args.force)
+
+    if args.monitoring:
+        run_monitoring(force=args.force)
 
     print("\n" + "=" * 60)
     print("Pipeline complete.")

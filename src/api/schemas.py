@@ -76,3 +76,19 @@ class HealthResponse(BaseModel):
     model_aim1: Optional[str] = None
     model_aim2: Optional[str] = None
     api_version: str = "1.0.0"
+
+
+class DriftCheckResponse(BaseModel):
+    drift_detected: bool
+    drift_ratio: Optional[float] = None
+    drift_count: Optional[int] = None
+    n_features: Optional[int] = None
+    per_feature: Optional[dict] = None
+    model_drift_detected: Optional[bool] = None
+    auc_drop: Optional[float] = None
+    prediction_psi: Optional[float] = None
+
+
+class SyntheticDriftResponse(BaseModel):
+    message: str
+    variants: dict

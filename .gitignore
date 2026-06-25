@@ -42,6 +42,9 @@ models/metadata/*.json
 *.pid
 .ngrok_url
 
+# Monitoring reports
+monitoring_reports/
+
 # Insomnia API test collection
 tb_recovery_insomnia.json
 
@@ -62,4 +65,8 @@ coverage.xml
 # Testing 
 models/registry/test_aim
 models/registry/test_aim_smote
+
+# MLflow tracking
+mlruns/
+mlruns
 

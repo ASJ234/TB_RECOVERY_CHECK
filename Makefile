@@ -1,4 +1,4 @@
-.PHONY: install clean lint test train eda api deploy help
+.PHONY: install clean lint test train eda api deploy help train-monitor synthetic drift-check mlflow-ui mlflow-ui-bg
 
 VENV_DIR ?= venv
 PYTHON := python3
@@ -7,17 +7,21 @@ help:
 	@echo "TB Recovery Check - Makefile"
 	@echo ""
 	@echo "Targets:"
-	@echo "  install     Create venv and install dependencies"
-	@echo "  lint        Run ruff linter"
-	@echo "  test        Run pytest"
-	@echo "  train       Run full training pipeline (Aim 1 + Aim 2)"
-	@echo "  train-aim1  Train Aim 1 model only"
-	@echo "  train-aim2  Train Aim 2 model only"
-	@echo "  eda         Launch Jupyter for EDA notebooks"
-	@echo "  api         Start FastAPI on localhost:8000"
-	@echo "  deploy      Start FastAPI + ngrok tunnel"
-	@echo "  clean       Remove venv, caches, build artifacts"
-	@echo "  data        Re-process raw data into clean CSVs"
+	@echo "  install         Create venv and install dependencies"
+	@echo "  lint            Run ruff linter"
+	@echo "  test            Run pytest"
+	@echo "  train           Run full training pipeline (Aim 1 + Aim 2)"
+	@echo "  train-aim1      Train Aim 1 model only"
+	@echo "  train-aim2      Train Aim 2 model only"
+	@echo "  train-monitor   Run training + drift monitoring"
+	@echo "  synthetic       Generate synthetic drift data"
+	@echo "  drift-check     Run drift check on synthetic vs reference"
+	@echo "  mlflow-ui       Launch MLflow UI for drift metrics"
+	@echo "  eda             Launch Jupyter for EDA notebooks"
+	@echo "  api             Start FastAPI on localhost:8000"
+	@echo "  deploy          Start FastAPI + ngrok tunnel"
+	@echo "  clean           Remove venv, caches, build artifacts"
+	@echo "  data            Re-process raw data into clean CSVs"
 
 install:
 	$(PYTHON) -m venv $(VENV_DIR)
@@ -40,6 +44,27 @@ train-aim2:
 
 data:
 	python -m src.data.clean_data
+
+train-monitor:
+	python -m src.pipeline.training_pipeline --aim all --monitoring
+
+synthetic:
+	python -m src.monitoring.synthetic_drift
+
+drift-check:
+	PYTHONPATH=. python scripts/drift_check.py
+
+mlflow-ui:
+	@echo "Open http://127.0.0.1:5000 in your browser."
+	@echo "Press Ctrl+C to stop."
+	MLFLOW_TRACKING_URI=sqlite:///mlruns/mlflow.db mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db --host 127.0.0.1 --cors-allowed-origins http://127.0.0.1:5000
+
+mlflow-ui-bg:
+	@echo "Starting MLflow UI in background at http://127.0.0.1:5000"
+	MLFLOW_TRACKING_URI=sqlite:///mlruns/mlflow.db nohup mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db --host 127.0.0.1 --port 5000 --cors-allowed-origins http://127.0.0.1:5000 > /tmp/mlflow-ui.log 2>&1 &
+	@echo "PID: $$!"
+	@echo "Logs: tail -f /tmp/mlflow-ui.log"
+	@echo "Stop: kill $$!"
 
 eda:
 	. $(VENV_DIR)/bin/activate && jupyter notebook notebooks/

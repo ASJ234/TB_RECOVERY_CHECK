@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import io
+import json
+from pathlib import Path
 
 from src.api.schemas import (
     Aim1PredictionRequest,
@@ -11,10 +13,16 @@ from src.api.schemas import (
     BatchPredictionRequest,
     ModelInfoResponse,
     HealthResponse,
+    DriftCheckResponse,
+    SyntheticDriftResponse,
 )
 from src.api.dependencies import get_model, get_feature_cols, clear_cache
 from src.models.predict import predict_single, predict_batch, get_model_info, METADATA_DIR
-import json
+from src.monitoring.data_drift import compute_data_drift
+from src.monitoring.model_drift import compute_model_drift
+from src.monitoring.reporting import generate_drift_report, save_drift_report, log_to_mlflow
+from src.monitoring.synthetic_drift import generate_all_synthetic_variants
+from src.pipeline.config import get_config
 
 app = FastAPI(
     title="TB Recovery Prediction API",
@@ -241,3 +249,146 @@ def model_info(aim: str = "1", params: str = None):
 def clear_model_cache():
     clear_cache()
     return {"status": "cache cleared"}
+
+
+@app.post("/monitor/data-drift", response_model=DriftCheckResponse)
+async def monitor_data_drift(
+    file: UploadFile = File(...),
+    aim: str = Query("1", description="Aim 1 or 2"),
+):
+    content = await file.read()
+    current_df = pd.read_csv(io.BytesIO(content))
+
+    config = get_config()
+    mon_cfg = config.monitoring
+
+    ref_csv = "aim1_patients_imputed.csv" if aim == "1" else "aim2_contacts_imputed.csv"
+    ref_path = Path(__file__).resolve().parents[2] / "data" / "cleaned" / ref_csv
+    if not ref_path.exists():
+        raise HTTPException(status_code=404, detail=f"Reference data not found: {ref_path}")
+    reference_df = pd.read_csv(ref_path)
+
+    _, feature_cols = _get_feature_cols_for_aim(aim)
+    available = [c for c in feature_cols if c in reference_df.columns and c in current_df.columns]
+
+    result = compute_data_drift(
+        reference_df, current_df,
+        feature_cols=available,
+        psi_bins=mon_cfg.psi_bins,
+    )
+
+    report = generate_drift_report(data_drift_result=result)
+    if mon_cfg.enabled:
+        save_drift_report(report)
+        log_to_mlflow(report, run_name=f"data_drift_aim{aim}")
+
+    return DriftCheckResponse(
+        drift_detected=result.get("data_drift_detected", False),
+        drift_ratio=result.get("drift_ratio"),
+        drift_count=result.get("drift_count"),
+        n_features=result.get("n_features"),
+        per_feature=result.get("per_feature"),
+    )
+
+
+@app.post("/monitor/model-drift", response_model=DriftCheckResponse)
+async def monitor_model_drift(
+    file: UploadFile = File(...),
+    aim: str = Query("1", description="Aim 1 or 2"),
+):
+    content = await file.read()
+    df = pd.read_csv(io.BytesIO(content))
+
+    config = get_config()
+    mon_cfg = config.monitoring
+    md_thresh = mon_cfg.model_drift_thresholds
+
+    aim_key = "aim1_non_conversion" if aim == "1" else "aim2_contact_risk"
+    try:
+        pipeline, version, model_name = get_model(aim_key)
+        feature_cols = get_feature_cols(aim_key)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=f"No trained model: {e}")
+
+    target_col = "TARGET_NON_CONVERSION_ANY" if aim == "1" else "TARGET_SYMPTOM_PRESENT"
+    if target_col not in df.columns:
+        raise HTTPException(status_code=400, detail=f"Label column '{target_col}' required")
+
+    ref_csv = "aim1_patients_imputed.csv" if aim == "1" else "aim2_contacts_imputed.csv"
+    ref_path = Path(__file__).resolve().parents[2] / "data" / "cleaned" / ref_csv
+    if not ref_path.exists():
+        raise HTTPException(status_code=404, detail=f"Reference data not found: {ref_path}")
+    reference_df = pd.read_csv(ref_path)
+    if target_col not in reference_df.columns:
+        raise HTTPException(status_code=500, detail=f"Reference data missing label column '{target_col}'")
+
+    ref_data = reference_df[feature_cols]
+    ref_labels = reference_df[target_col].astype(int)
+    cur_data = df[feature_cols]
+    cur_labels = df[target_col].astype(int)
+
+    result = compute_model_drift(
+        pipeline, ref_data, ref_labels, cur_data, cur_labels,
+        feature_cols=feature_cols,
+        auc_drop_threshold=md_thresh.auc_drop,
+        prediction_psi_threshold=md_thresh.prediction_psi,
+    )
+
+    report = generate_drift_report(model_drift_result=result)
+    if mon_cfg.enabled:
+        save_drift_report(report)
+        log_to_mlflow(report, run_name=f"model_drift_aim{aim}_{model_name}_{version}")
+
+    return DriftCheckResponse(
+        drift_detected=result.get("model_drift_detected", False),
+        model_drift_detected=result.get("performance_drift"),
+        auc_drop=result.get("auc_drop"),
+        prediction_psi=result.get("prediction_psi"),
+    )
+
+
+@app.get("/monitor/report")
+def get_latest_drift_report():
+    MONITORING_DIR = Path(__file__).resolve().parents[2] / "monitoring_reports"
+    if not MONITORING_DIR.exists():
+        raise HTTPException(status_code=404, detail="No drift reports found")
+    reports = sorted(MONITORING_DIR.glob("drift_report_*.json"), reverse=True)
+    if not reports:
+        raise HTTPException(status_code=404, detail="No drift reports found")
+    with open(reports[0]) as f:
+        return json.load(f)
+
+
+@app.post("/monitor/generate-synthetic", response_model=SyntheticDriftResponse)
+def generate_synthetic_drift_data(aim: str = Query("1", description="Aim 1 or 2")):
+    source_map = {
+        "1": ("aim1_patients_imputed.csv", "aim1"),
+        "2": ("aim2_contacts_imputed.csv", "aim2"),
+    }
+    if aim not in source_map:
+        raise HTTPException(status_code=400, detail="aim must be '1' or '2'")
+    source_csv, prefix = source_map[aim]
+    try:
+        variants = generate_all_synthetic_variants(source_csv, output_prefix=prefix)
+        return SyntheticDriftResponse(
+            message=f"Synthetic drift data generated for aim {aim}",
+            variants=variants,
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+def _get_feature_cols_for_aim(aim: str):
+    from src.data.feature_engineering import (
+        get_aim1_features_target,
+        get_aim2_features_target,
+    )
+
+    data_dir = Path(__file__).resolve().parents[2] / "data" / "cleaned"
+    if aim == "1":
+        df = pd.read_csv(data_dir / "aim1_patients_imputed.csv")
+        _, cols = get_aim1_features_target(df)
+    else:
+        df = pd.read_csv(data_dir / "aim2_contacts_imputed.csv")
+        _, cols = get_aim2_features_target(df)
+    return df, cols
