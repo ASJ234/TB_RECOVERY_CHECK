@@ -374,3 +374,60 @@ Tests in `tests/test_monitoring.py`:
 - **Synthetic drift**: The perturbed data is for infrastructure validation only. Real data drift patterns will differ.
 - **MLflow local mode**: Tracking is file-based (`./mlruns`). For team-wide monitoring, point to a shared MLflow server by changing the tracking URI.
 - **Auto-retrain**: The `auto_retrain` flag is implemented in monitoring config but requires wiring up to the retraining command (currently outputs a message). Enable cautiously.
+
+---
+
+## Question 11: Makefile Targets
+
+**Asked**: After monitoring was integrated, the user requested documentation of all Makefile commands available in the system.
+
+**Answer**: All targets are defined in the project root `Makefile`.
+
+### Setup & Development
+
+| Target | Command | Description |
+|---|---|---|
+| `install` | `python3 -m venv venv && pip install -r requirements.txt` | Create venv and install dependencies |
+| `lint` | `ruff check src/ tests/` | Run ruff linter |
+| `test` | `python -m pytest tests/ -v --tb=short` | Run pytest |
+| `clean` | `rm -rf venv __pycache__ .pytest_cache models/metadata/*.json` | Remove venv, caches, build artifacts |
+| `data` | `python -m src.data.clean_data` | Re-process raw data into clean CSVs |
+
+### Training
+
+| Target | Command | Description |
+|---|---|---|
+| `train` | `python -m src.pipeline.training_pipeline --aim all --force` | Run full training pipeline (Aim 1 + Aim 2) |
+| `train-aim1` | `python -m src.pipeline.training_pipeline --aim 1 --force` | Train Aim 1 model only |
+| `train-aim2` | `python -m src.pipeline.training_pipeline --aim 2 --force` | Train Aim 2 model only |
+
+### Monitoring & Drift Detection
+
+| Target | Command | Description |
+|---|---|---|
+| `train-monitor` | `python -m src.pipeline.training_pipeline --aim all --monitoring` | Run training + drift monitoring |
+| `synthetic` | `python -m src.monitoring.synthetic_drift` | Generate synthetic drift data |
+| `drift-check` | `PYTHONPATH=. python scripts/drift_check.py` | Run drift check on synthetic vs reference |
+| `mlflow-ui` | `mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db` | Launch MLflow UI (foreground, Ctrl+C to stop) |
+| `mlflow-ui-bg` | `nohup mlflow ui ... > /tmp/mlflow-ui.log &` | Launch MLflow UI in background |
+
+### Serving
+
+| Target | Command | Description |
+|---|---|---|
+| `api` | `uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload` | Start FastAPI on localhost:8000 |
+| `deploy` | `bash src/deploy/start_ngrok.sh` | Start FastAPI + ngrok tunnel |
+| `eda` | `jupyter notebook notebooks/` | Launch Jupyter for EDA notebooks |
+
+### Usage
+
+```bash
+make install          # first time setup
+make data             # process raw data
+make train            # train all models
+make api              # serve the API
+make train-monitor    # train + run drift checks
+make mlflow-ui        # view drift metrics
+```
+
+Run `make` or `make help` to print the full list of targets with descriptions.
