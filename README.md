@@ -72,7 +72,10 @@ python -m src.pipeline.training_pipeline --aim all --force
 # Start the API server
 uvicorn src.api.main:app --host 0.0.0.0 --port 8000
 
-# Deploy with ngrok tunnel
+# Kill any process on port 8000 (if address already in use)
+kill $(lsof -t -i:8000)
+
+# Deploy with ngrok tunnel (starts API + ngrok)
 bash src/deploy/start_ngrok.sh
 ```
 
