@@ -30,6 +30,7 @@ if [ -d "$VENV_DIR" ]; then
 fi
 
 echo "Starting FastAPI on $HOST:$PORT..."
+fuser -k "$PORT"/tcp 2>/dev/null || true
 nohup uvicorn src.api.main:app --host "$HOST" --port "$PORT" > "$API_LOG" 2>&1 &
 API_PID=$!
 echo "$API_PID" > .api_pid

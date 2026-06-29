@@ -70,6 +70,7 @@ eda:
 	. $(VENV_DIR)/bin/activate && jupyter notebook notebooks/
 
 api:
+	fuser -k 8000/tcp 2>/dev/null || true
 	uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
 
 deploy:
