@@ -132,4 +132,4 @@ jobs:
     if: false  # Manual deploy via SSH (local machine). Set to true for automated deploy.
     steps:
       - name: Deploy placeholder
-        run: echo "Deploy step: scp models/ to local server, restart API"
+        run: 'echo "Deploy step: scp models/ to local server, restart API"'
