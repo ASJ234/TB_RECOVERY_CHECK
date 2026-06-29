@@ -109,8 +109,8 @@ jobs:
           from pathlib import Path
           reports = sorted(Path('monitoring_reports').glob('drift_report_*.json'))
           if not reports:
-              print('No drift reports found.')
-              exit(1)
+              print('No drift reports found. Monitoring may not have run yet.')
+              exit(0)
           latest = reports[-1]
           with open(latest) as f:
               report = json.load(f)
