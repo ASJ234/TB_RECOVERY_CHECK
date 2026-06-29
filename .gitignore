@@ -41,6 +41,8 @@ models/metadata/*.json
 *.log
 *.pid
 .ngrok_url
+.api_pid
+.ngrok_pid
 
 # Monitoring reports
 monitoring_reports/
