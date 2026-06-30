@@ -35,6 +35,7 @@ models/registry/aim1_non_conversion/*.pkl
 models/registry/aim2_contact_risk/*.pkl
 models/scalers/*.pkl
 models/metadata/*.json
+models/metadata/*.png
 !models/metadata/.gitkeep
 
 # Logs
