@@ -58,10 +58,10 @@ drift-check:
 	PYTHONPATH=. python scripts/drift_check.py
 
 simulate-stream:
-	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --pace $(or $(PACE),1.0)
+	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0)
 
 simulate-all:
-	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario all --pace $(or $(PACE),1.0)
+	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario all --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0)
 
 simulate-list:
 	PYTHONPATH=. python -m src.simulation.stream_simulator --list-scenarios

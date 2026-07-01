@@ -89,6 +89,7 @@ class StreamSimulator:
         logger.info("=" * 60)
 
         self._load_champion_model()
+        self._mlflow_enabled = True
         param_history = []
 
         for hour in range(self.total_hours):
@@ -241,6 +242,9 @@ class StreamSimulator:
         self.outputs.save_summary(summary)
         self.outputs.generate_all_plots(self.results)
 
+        if self._mlflow_enabled:
+            self._log_to_mlflow(total_alerts, data_alert_hours, model_alert_hours, summary)
+
         logger.info("=" * 60)
         logger.info("Simulation complete")
         logger.info("Alerts: %d total (%d data, %d model)", total_alerts, data_alert_hours, model_alert_hours)
@@ -248,6 +252,78 @@ class StreamSimulator:
         logger.info("Max AUC drop: %.3f", summary["alerts"]["max_auc_drop"])
         logger.info("Output: %s", self.outputs.output_dir)
         logger.info("=" * 60)
+
+    def _log_to_mlflow(self, total_alerts: int, data_alert_hours: int,
+                       model_alert_hours: int, summary: dict):
+        import re
+        import mlflow
+
+        tracking_uri = "sqlite:///" + str(
+            Path(__file__).resolve().parents[2] / "mlruns" / "mlflow.db"
+        )
+        mlflow.set_tracking_uri(tracking_uri)
+        mlflow.set_experiment("simulation_drift")
+
+        run_name = f"{self.scenario_name}_{self.aim}_{datetime.now().strftime('%H%M%S')}"
+
+        with mlflow.start_run(run_name=run_name):
+            mlflow.log_param("scenario", self.scenario_name)
+            mlflow.log_param("aim", self.aim)
+            mlflow.log_param("total_hours", self.total_hours)
+            mlflow.log_param("records_per_window", self.records_per_window)
+            mlflow.log_param("total_records", self.total_hours * self.records_per_window)
+            mlflow.log_param("llm_source", summary.get("llm_source", "unknown"))
+
+            mlflow.log_metric("total_alerts", total_alerts)
+            mlflow.log_metric("data_drift_hours", data_alert_hours)
+            mlflow.log_metric("model_drift_hours", model_alert_hours)
+            mlflow.log_metric("max_drift_ratio", summary["alerts"]["max_drift_ratio"])
+            mlflow.log_metric("max_auc_drop", summary["alerts"]["max_auc_drop"])
+            mlflow.log_metric("sustained_drift", int(summary["sustained_drift"]))
+            if summary.get("first_alert_hour") is not None:
+                mlflow.log_metric("first_alert_hour", summary["first_alert_hour"])
+
+            for r in self.results:
+                hour = r["hour"]
+                mlflow.log_metric("drift_ratio", r.get("drift_ratio", 0.0), step=hour)
+                mlflow.log_metric("drift_detected", int(r.get("drift_detected", False)), step=hour)
+                v = r.get("auc_drop")
+                mlflow.log_metric("auc_drop", v if v is not None else 0.0, step=hour)
+
+            for feat in sorted(set(
+                f for r in self.results
+                for f in r.get("per_feature", {})
+            )):
+                tag = re.sub(r"[^a-zA-Z0-9_\-\.\/ :]", "_", feat)
+                for r in self.results:
+                    fi = r.get("per_feature", {}).get(feat, {})
+                    mlflow.log_metric(
+                        f"feat_drift_{tag}",
+                        int(fi.get("drift_detected", False)),
+                        step=r["hour"],
+                    )
+
+            mlflow.log_dict({
+                "scenario": self.scenario_name,
+                "aim": self.aim,
+                "total_hours": self.total_hours,
+                "records_per_window": self.records_per_window,
+                "alerts": {
+                    "total": total_alerts,
+                    "data_drift_hours": data_alert_hours,
+                    "model_drift_hours": model_alert_hours,
+                    "max_drift_ratio": summary["alerts"]["max_drift_ratio"],
+                    "max_auc_drop": summary["alerts"]["max_auc_drop"],
+                },
+            }, "simulation_metadata.json")
+
+            for fname in ("drift_timeseries.json", "alert_log.json", "simulation_summary.json"):
+                fpath = self.outputs.output_dir / fname
+                if fpath.exists():
+                    mlflow.log_artifact(str(fpath))
+
+            for png in self.outputs.output_dir.glob("*.png"):
+                mlflow.log_artifact(str(png))
 
     def _detect_sustained_drift(self):
         if len(self.results) < 6:

@@ -87,10 +87,13 @@ All saved to `monitoring_reports/simulation_{scenario}_{timestamp}/`:
 ## Makefile
 
 ```bash
-make simulate-stream            # Run default scenario
-make simulate-stream SCENARIO=sudden_outbreak PACE=0   # Instant, sudden outbreak
-make simulate-all               # Run all scenarios
-make simulate-list              # List scenarios
+make simulate-stream                                    # Run default scenario (aim1, gradual_age_shift, 1s pace)
+make simulate-stream SCENARIO=sudden_outbreak PACE=0    # Instant, sudden outbreak
+make simulate-stream AIM=aim2 SCENARIO=gradual_age_shift PACE=1   # Aim 2 contacts
+make simulate-stream AIM=aim1_strict SCENARIO=sudden_outbreak PACE=0  # Strict model, instant
+make simulate-all                                        # Run all scenarios on aim1
+make simulate-all AIM=aim2 PACE=0                        # All scenarios on aim2, instant
+make simulate-list                                       # List scenarios
 ```
 
 ## Without Ollama
