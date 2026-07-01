@@ -31,7 +31,7 @@ class StreamSimulator:
         records_per_window: int = 10,
         pace_seconds: float = 1.0,
         fallback: bool = True,
-        llm_model: str = "mistral",
+        llm_model: str = "tinyllama",
         random_state: int = 42,
     ):
         self.scenario = get_scenario(scenario_name)
@@ -375,8 +375,8 @@ def parse_args():
         help="Random seed (default: 42)",
     )
     parser.add_argument(
-        "--llm-model", type=str, default="mistral",
-        help="Ollama model name (default: mistral)",
+        "--llm-model", type=str, default="tinyllama",
+        help="Ollama model name (default: tinyllama)",
     )
     return parser.parse_args()
 

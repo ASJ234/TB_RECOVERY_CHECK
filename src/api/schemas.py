@@ -101,7 +101,7 @@ class SimulationStartRequest(BaseModel):
     records_per_window: int = Field(10, description="Records per hourly window")
     pace_seconds: float = Field(1.0, description="Seconds between windows")
     fallback: bool = Field(True, description="Use deterministic fallback if LLM unavailable")
-    llm_model: str = Field("mistral", description="Ollama model name")
+    llm_model: str = Field("tinyllama", description="Ollama model name")
 
 
 class SimulationStatusResponse(BaseModel):

@@ -7,7 +7,7 @@ Generates a **72-hour streaming data scenario** to exercise drift detection. Use
 ```bash
 # Prerequisites: Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull mistral
+ollama pull tinyllama
 
 # Run a simulation
 python -m src.simulation.stream_simulator --scenario gradual_age_shift
@@ -46,7 +46,7 @@ At each of 72 hours:
 | `--records` | `10` | Records per hourly window |
 | `--pace` | `1.0` | Seconds between windows (0 = instant) |
 | `--no-fallback` | (off) | Require LLM; error if unavailable |
-| `--llm-model` | `mistral` | Ollama model name |
+| `--llm-model` | `tinyllama` | Ollama model name |
 | `--seed` | `42` | Random seed for reproducibility |
 | `--list-scenarios` | — | List available scenarios and exit |
 

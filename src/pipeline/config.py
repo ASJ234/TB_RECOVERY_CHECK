@@ -80,7 +80,7 @@ class SimulationConfig:
     total_hours: int = 72
     records_per_window: int = 10
     pace_seconds: float = 1.0
-    llm_model: str = "mistral"
+    llm_model: str = "tinyllama"
     fallback_enabled: bool = True
     aim: str = "aim1"
 

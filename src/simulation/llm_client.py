@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     def __init__(
         self,
-        model: str = "mistral",
+        model: str = "tinyllama",
         base_url: str = "http://localhost:11434",
         timeout_seconds: int = 30,
         max_retries: int = 3,
@@ -28,7 +28,17 @@ class LLMClient:
         try:
             import httpx
             resp = httpx.get(f"{self.base_url}/api/tags", timeout=5)
-            self._available = resp.status_code == 200
+            if resp.status_code != 200:
+                self._available = False
+            else:
+                models = resp.json().get("models", [])
+                available_models = [m.get("name") for m in models]
+                if not any(self.model in m for m in available_models):
+                    logger.warning("Model '%s' not found in Ollama (available: %s) — using fallback",
+                                   self.model, available_models or "none")
+                    self._available = False
+                else:
+                    self._available = True
         except Exception:
             logger.warning("Ollama not reachable at %s — using fallback mode", self.base_url)
             self._available = False
@@ -83,8 +93,9 @@ class LLMClient:
                 time.sleep(1)
 
         logger.error("LLM failed after %d retries: %s", self.max_retries, last_error)
+        self._available = False
         if self.fallback:
-            logger.info("Falling back to deterministic drift curve")
+            logger.info("Falling back to deterministic drift curve for this and remaining hours")
             return self._fallback_params(scenario_name, current_hour, total_hours, reference_distributions)
         raise RuntimeError(f"LLM unavailable and fallback disabled: {last_error}")
 
