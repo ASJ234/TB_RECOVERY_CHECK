@@ -88,6 +88,7 @@ class StreamSimulator:
         logger.info("LLM fallback: %s", "enabled" if self.llm.fallback else "disabled")
         logger.info("=" * 60)
 
+        self.llm.check_available()
         self._load_champion_model()
         self._mlflow_enabled = True
         param_history = []

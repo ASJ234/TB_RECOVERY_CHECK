@@ -39,6 +39,7 @@ class LLMClient:
                     self._available = False
                 else:
                     self._available = True
+                    logger.info("LLM model '%s' loaded successfully", self.model)
         except Exception:
             logger.warning("Ollama not reachable at %s — using fallback mode", self.base_url)
             self._available = False
@@ -82,6 +83,10 @@ class LLMClient:
                 raw = resp.json().get("response", "")
                 params = self._parse_json(raw)
                 if params is not None:
+                    if not self._validate_params(params, reference_distributions):
+                        logger.warning("Attempt %d: LLM output has invalid structure, retrying", attempt + 1)
+                        last_error = f"Validation error on attempt {attempt + 1}: unexpected format"
+                        continue
                     return params
 
                 logger.warning("Attempt %d: failed to parse LLM output, retrying", attempt + 1)
@@ -98,6 +103,21 @@ class LLMClient:
             logger.info("Falling back to deterministic drift curve for this and remaining hours")
             return self._fallback_params(scenario_name, current_hour, total_hours, reference_distributions)
         raise RuntimeError(f"LLM unavailable and fallback disabled: {last_error}")
+
+    def _validate_params(self, params: dict, reference_distributions: dict) -> bool:
+        if not isinstance(params, dict):
+            return False
+        for feat, ref in reference_distributions.items():
+            dp = params.get(feat)
+            if dp is None:
+                continue
+            if not isinstance(dp, dict):
+                return False
+            if ref["type"] == "numeric" and "mean" not in dp:
+                return False
+            if ref["type"] == "categorical" and "distribution" not in dp:
+                return False
+        return True
 
     def _build_prompt(
         self,
@@ -136,7 +156,9 @@ Phase of simulation: {timeline} (progress {progress:.0%}).
 Reference distributions (baseline, hour 0):
 {ref_text}
 {history_text}
-Return ONLY a JSON object with drift parameters for this hour. Each numeric parameter should match the reference format (mean, std).
+Return ONLY a JSON object — NOT an array. Each feature must map to an object with "mean" and "std" keys (numeric features) or "distribution" key (categorical).
+Example format:
+{{"AGE (YEARS)": {{"mean": 45.0, "std": 15.0}}, "GENDER": {{"distribution": {{"M": 0.5, "F": 0.5}}}}}}
 The parameters should reflect realistic gradual drift consistent with the scenario and current simulation phase.
 Do NOT include any text outside the JSON object."""
 
