@@ -15,6 +15,11 @@ from src.api.schemas import (
     HealthResponse,
     DriftCheckResponse,
     SyntheticDriftResponse,
+    SimulationStartRequest,
+    SimulationStatusResponse,
+    SimulationResultsResponse,
+    SimulationResultSummary,
+    SimulationScenariosResponse,
 )
 from src.api.dependencies import get_model, get_feature_cols, clear_cache
 from src.models.predict import predict_single, predict_batch, get_model_info, METADATA_DIR
@@ -23,6 +28,8 @@ from src.monitoring.model_drift import compute_model_drift
 from src.monitoring.reporting import generate_drift_report, save_drift_report, log_to_mlflow
 from src.monitoring.synthetic_drift import generate_all_synthetic_variants
 from src.pipeline.config import get_config
+from src.simulation.drift_scenarios import SCENARIOS
+from src.simulation.stream_simulator import StreamSimulator
 
 app = FastAPI(
     title="TB Recovery Prediction API",
@@ -376,6 +383,132 @@ def generate_synthetic_drift_data(aim: str = Query("1", description="Aim 1 or 2"
         )
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+_simulation_runs: dict[str, dict] = {}
+
+
+@app.get("/simulate/scenarios", response_model=SimulationScenariosResponse)
+def list_simulation_scenarios():
+    scenarios = [
+        {"name": name, "description": sc.description, "aim": sc.target_aim, "drift_features": list(sc.drift_curves.keys())}
+        for name, sc in SCENARIOS.items()
+    ]
+    return SimulationScenariosResponse(scenarios=scenarios)
+
+
+@app.post("/simulate/start", response_model=SimulationStatusResponse)
+def start_simulation(request: SimulationStartRequest):
+    import uuid
+    run_id = str(uuid.uuid4())[:8]
+
+    sim = StreamSimulator(
+        scenario_name=request.scenario,
+        aim=request.aim,
+        total_hours=request.hours,
+        records_per_window=request.records_per_window,
+        pace_seconds=request.pace_seconds,
+        fallback=request.fallback,
+        llm_model=request.llm_model,
+    )
+
+    _simulation_runs[run_id] = {
+        "simulator": sim,
+        "scenario": request.scenario,
+        "aim": request.aim,
+        "status": "running",
+        "current_hour": 0,
+        "total_hours": request.hours,
+    }
+
+    import threading
+    def _run():
+        try:
+            sim.run()
+            _simulation_runs[run_id]["status"] = "completed"
+        except Exception as e:
+            _simulation_runs[run_id]["status"] = f"failed: {e}"
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+
+    return SimulationStatusResponse(
+        run_id=run_id,
+        scenario=request.scenario,
+        aim=request.aim,
+        status="running",
+        current_hour=0,
+        total_hours=request.hours,
+        progress_pct=0.0,
+    )
+
+
+@app.get("/simulate/status/{run_id}", response_model=SimulationStatusResponse)
+def get_simulation_status(run_id: str):
+    run = _simulation_runs.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    sim = run["simulator"]
+    current = len(sim.results) if hasattr(sim, "results") else 0
+    total = run["total_hours"]
+    return SimulationStatusResponse(
+        run_id=run_id,
+        scenario=run["scenario"],
+        aim=run["aim"],
+        status=run["status"],
+        current_hour=current,
+        total_hours=total,
+        progress_pct=(current / total * 100) if total > 0 else 0.0,
+    )
+
+
+@app.get("/simulate/results/{run_id}", response_model=SimulationResultsResponse)
+def get_simulation_results(run_id: str):
+    run = _simulation_runs.get(run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    if run["status"] == "running":
+        raise HTTPException(status_code=400, detail="Simulation still running. Check status first.")
+
+    sim = run["simulator"]
+    alerts = sim.alerts if hasattr(sim, "alerts") else []
+    results = sim.results if hasattr(sim, "results") else []
+    outputs = sim.outputs if hasattr(sim, "outputs") else None
+
+    total_alerts = len(alerts)
+    data_alert_hours = sum(1 for a in alerts if a.get("data_drift", False))
+    model_alert_hours = sum(1 for a in alerts if a.get("model_drift", False))
+    max_drift_ratio = max((r.get("drift_ratio", 0) for r in results), default=0)
+    max_auc_drop = max((r.get("auc_drop") or 0 for r in results), default=0)
+    first_alert = alerts[0]["hour"] if alerts else None
+
+    sustained = sim._detect_sustained_drift() if hasattr(sim, "_detect_sustained_drift") else False
+
+    summary = SimulationResultSummary(
+        total_hours=run["total_hours"],
+        total_alerts=total_alerts,
+        data_drift_hours=data_alert_hours,
+        model_drift_hours=model_alert_hours,
+        max_drift_ratio=max_drift_ratio,
+        max_auc_drop=max_auc_drop,
+        first_alert_hour=first_alert,
+        sustained_drift=sustained,
+        output_dir=str(outputs.output_dir) if outputs else "",
+    )
+
+    plots = {}
+    if outputs and outputs.output_dir.exists():
+        for p in outputs.output_dir.glob("*.png"):
+            plots[p.stem] = str(p)
+
+    return SimulationResultsResponse(
+        run_id=run_id,
+        scenario=run["scenario"],
+        summary=summary,
+        output_dir=str(outputs.output_dir) if outputs else "",
+        timeseries=results,
+        plots=plots,
+    )
 
 
 def _get_feature_cols_for_aim(aim: str):

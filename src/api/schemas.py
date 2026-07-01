@@ -92,3 +92,48 @@ class DriftCheckResponse(BaseModel):
 class SyntheticDriftResponse(BaseModel):
     message: str
     variants: dict
+
+
+class SimulationStartRequest(BaseModel):
+    scenario: str = Field("gradual_age_shift", description="Drift scenario name")
+    aim: str = Field("aim1", description="Dataset aim (aim1, aim2, aim1_strict)")
+    hours: int = Field(72, description="Total simulation hours")
+    records_per_window: int = Field(10, description="Records per hourly window")
+    pace_seconds: float = Field(1.0, description="Seconds between windows")
+    fallback: bool = Field(True, description="Use deterministic fallback if LLM unavailable")
+    llm_model: str = Field("mistral", description="Ollama model name")
+
+
+class SimulationStatusResponse(BaseModel):
+    run_id: str
+    scenario: str
+    aim: str
+    status: str
+    current_hour: int
+    total_hours: int
+    progress_pct: float
+
+
+class SimulationResultSummary(BaseModel):
+    total_hours: int
+    total_alerts: int
+    data_drift_hours: int
+    model_drift_hours: int
+    max_drift_ratio: float
+    max_auc_drop: Optional[float] = None
+    first_alert_hour: Optional[int] = None
+    sustained_drift: bool
+    output_dir: str
+
+
+class SimulationResultsResponse(BaseModel):
+    run_id: str
+    scenario: str
+    summary: SimulationResultSummary
+    output_dir: str
+    timeseries: list = Field(default_factory=list, description="Full time-series data (truncated in list view)")
+    plots: dict = Field(default_factory=dict, description="Paths to generated plots")
+
+
+class SimulationScenariosResponse(BaseModel):
+    scenarios: list

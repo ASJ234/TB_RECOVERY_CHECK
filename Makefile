@@ -1,4 +1,4 @@
-.PHONY: install clean lint test train eda api deploy help train-monitor synthetic drift-check mlflow-ui mlflow-ui-bg
+.PHONY: install clean lint test train eda api deploy help train-monitor synthetic drift-check mlflow-ui mlflow-ui-bg simulate-stream simulate-list simulate-plot
 
 VENV_DIR ?= venv
 PYTHON := python3
@@ -14,8 +14,11 @@ help:
 	@echo "  train-aim1      Train Aim 1 model only"
 	@echo "  train-aim2      Train Aim 2 model only"
 	@echo "  train-monitor   Run training + drift monitoring"
-	@echo "  synthetic       Generate synthetic drift data"
+	@echo "  synthetic       Generate synthetic drift data (static Gaussian/swap)"
 	@echo "  drift-check     Run drift check on synthetic vs reference"
+	@echo "  simulate-stream Run 72-hour LLM-driven stream simulation (SCENARIO=name, PACE=1.0)"
+	@echo "  simulate-all    Run all drift scenarios sequentially"
+	@echo "  simulate-list   List available drift scenarios"
 	@echo "  mlflow-ui       Launch MLflow UI for drift metrics"
 	@echo "  eda             Launch Jupyter for EDA notebooks"
 	@echo "  api             Start FastAPI on localhost:8000"
@@ -53,6 +56,15 @@ synthetic:
 
 drift-check:
 	PYTHONPATH=. python scripts/drift_check.py
+
+simulate-stream:
+	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --pace $(or $(PACE),1.0)
+
+simulate-all:
+	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario all --pace $(or $(PACE),1.0)
+
+simulate-list:
+	PYTHONPATH=. python -m src.simulation.stream_simulator --list-scenarios
 
 mlflow-ui:
 	@echo "Open http://127.0.0.1:5000 in your browser."

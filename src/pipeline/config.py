@@ -74,10 +74,23 @@ class MonitoringConfig:
 
 
 @dataclass
+class SimulationConfig:
+    enabled: bool = True
+    default_scenario: str = "gradual_age_shift"
+    total_hours: int = 72
+    records_per_window: int = 10
+    pace_seconds: float = 1.0
+    llm_model: str = "mistral"
+    fallback_enabled: bool = True
+    aim: str = "aim1"
+
+
+@dataclass
 class PipelineConfig:
     aim1: Aim1Config = field(default_factory=Aim1Config)
     aim2: Aim2Config = field(default_factory=Aim2Config)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
+    simulation: SimulationConfig = field(default_factory=SimulationConfig)
     skip_if_data_unchanged: bool = True
     save_plots: bool = True
     log_level: str = "INFO"
@@ -107,10 +120,14 @@ class PipelineConfig:
             model_drift_thresholds=md_thresh,
             synthetic_demo=syn_demo,
         )
+        sim_data = data.get("simulation", {})
+        simulation = SimulationConfig(**sim_data)
+
         return cls(
             aim1=aim1,
             aim2=aim2,
             monitoring=monitoring,
+            simulation=simulation,
             skip_if_data_unchanged=data.get("skip_if_data_unchanged", True),
             save_plots=data.get("save_plots", True),
             log_level=data.get("log_level", "INFO"),
