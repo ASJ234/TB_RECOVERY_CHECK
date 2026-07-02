@@ -137,3 +137,30 @@ class SimulationResultsResponse(BaseModel):
 
 class SimulationScenariosResponse(BaseModel):
     scenarios: list
+
+
+class GlobalExplanationResponse(BaseModel):
+    aim: str
+    model: str
+    version: str
+    feature_names: list[str]
+    mean_abs_shap: list[float]
+    std_shap: list[float]
+    base_value: float
+    n_background_samples: int
+    generated_at: str
+    plot_base64: str | None = None
+
+
+class InstanceExplanationResponse(BaseModel):
+    aim: str
+    model: str
+    version: str
+    prediction: int
+    probability: float
+    base_value: float
+    features: dict[str, float]
+    shap_values: dict[str, float]
+    feature_names: list[str]
+    waterfall_plot_base64: str | None = None
+    force_plot_base64: str | None = None

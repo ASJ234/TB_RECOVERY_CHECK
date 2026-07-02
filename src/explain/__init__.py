@@ -1,0 +1,53 @@
+from src.explain.shap_explainer import (
+    create_explainer,
+    compute_global_shap,
+    compute_instance_shap,
+    map_shap_to_original_features,
+    save_global_explanation,
+    load_global_explanation,
+    save_explainer,
+    load_explainer,
+    EXPLANATIONS_DIR,
+    EXPLAINERS_DIR,
+)
+from src.explain.visualizations import (
+    plot_shap_summary,
+    plot_shap_waterfall,
+    plot_shap_force,
+    plot_shap_dependence,
+    create_summary_plot_base64,
+    create_waterfall_plot_base64,
+    create_force_plot_base64,
+    encode_plot_to_base64,
+)
+from src.explain.api_explain import (
+    global_explanation_to_json,
+    instance_explanation_to_json,
+    create_instance_plot_data,
+    create_background_sample,
+)
+
+__all__ = [
+    "create_explainer",
+    "compute_global_shap",
+    "compute_instance_shap",
+    "map_shap_to_original_features",
+    "save_global_explanation",
+    "load_global_explanation",
+    "save_explainer",
+    "load_explainer",
+    "create_background_sample",
+    "EXPLANATIONS_DIR",
+    "EXPLAINERS_DIR",
+    "plot_shap_summary",
+    "plot_shap_waterfall",
+    "plot_shap_force",
+    "plot_shap_dependence",
+    "create_summary_plot_base64",
+    "create_waterfall_plot_base64",
+    "create_force_plot_base64",
+    "encode_plot_to_base64",
+    "global_explanation_to_json",
+    "instance_explanation_to_json",
+    "create_instance_plot_data",
+]

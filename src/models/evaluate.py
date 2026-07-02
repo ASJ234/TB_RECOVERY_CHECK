@@ -15,7 +15,8 @@ REPORTS_DIR = Path(__file__).resolve().parents[2] / "models" / "metadata"
 
 
 def evaluate_model(pipeline, X_test: pd.DataFrame, y_test: pd.Series,
-                   model_name: str, aim: str, version: str):
+                   model_name: str, aim: str, version: str,
+                   X_train: pd.DataFrame = None, feature_cols: list = None):
     if len(X_test) == 0:
         print(f"  {model_name} ({version}): no test set to evaluate")
         return {}
@@ -42,6 +43,11 @@ def evaluate_model(pipeline, X_test: pd.DataFrame, y_test: pd.Series,
     _plot_roc_curve(y_test, y_proba, model_name, aim, version)
     _plot_pr_curve(y_test, y_proba, model_name, aim, version)
     _plot_confusion_matrix(y_test, y_pred, model_name, aim, version)
+
+    # Generate SHAP explanations
+    X_explain = X_train if X_train is not None else X_test
+    if X_explain is not None and feature_cols is not None:
+        generate_shap_explanations(pipeline, X_explain, feature_cols, aim, model_name, version, is_loocv=False)
 
     return metrics
 
@@ -84,7 +90,9 @@ def _plot_pr_curve(y_true, y_proba, model_name, aim, version):
 
 
 def evaluate_loocv(per_fold: list, model_name: str = "strict_logistic",
-                    aim: str = "aim1_non_conversion", version: str = "v1"):
+                    aim: str = "aim1_non_conversion", version: str = "v1",
+                    X: pd.DataFrame = None, y: pd.Series = None,
+                    pipeline = None, feature_cols: list = None):
     df = pd.DataFrame(per_fold)
 
     y_true = df["true_label"].values
@@ -167,6 +175,10 @@ def evaluate_loocv(per_fold: list, model_name: str = "strict_logistic",
         json.dump(report, f, indent=2)
     print(f"    Report saved: {report_path}")
 
+    # Generate SHAP explanations
+    if X is not None and pipeline is not None and feature_cols is not None:
+        generate_shap_explanations(pipeline, X, feature_cols, aim, model_name, version, is_loocv=True)
+
     return metrics
 
 
@@ -216,3 +228,52 @@ def _plot_confusion_matrix(y_true, y_pred, model_name, aim, version):
     out_dir.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_dir / f"cm_{model_name}_{version}.png", dpi=100, bbox_inches="tight")
     plt.close(fig)
+
+
+def generate_shap_explanations(pipeline, X, feature_cols, aim, model_name, version, is_loocv=False):
+    """Generate SHAP explainer and save explanations and summary plots."""
+    try:
+        from src.explain import (
+            create_explainer, compute_global_shap,
+            plot_shap_summary, global_explanation_to_json,
+            save_explainer, save_global_explanation
+        )
+        from src.explain.shap_explainer import _get_background_sample
+        from src.pipeline.config import get_config
+
+        config = get_config()
+        if not config.xai.enabled:
+            return
+
+        bg_limit = config.xai.background_samples
+        X_bg = _get_background_sample(X[feature_cols], bg_limit)
+
+        explainer, preprocessor = create_explainer(pipeline, X_bg, model_name)
+        global_shap = compute_global_shap(explainer, X_bg, feature_cols, preprocessor, max_samples=bg_limit)
+
+        # Save explainer & global JSON
+        save_explainer(explainer, aim, model_name, version)
+        save_global_explanation(global_shap, aim, model_name, version)
+
+        # Generate summary plot path
+        from src.explain.shap_explainer import _get_transformed_feature_names
+        trans_feature_names = _get_transformed_feature_names(preprocessor, feature_cols)
+        X_transformed = preprocessor.transform(X_bg)
+
+        prefix = "loocv_" if is_loocv else ""
+        plot_dir = REPORTS_DIR / aim
+        plot_dir.mkdir(parents=True, exist_ok=True)
+        plot_path = plot_dir / f"{prefix}shap_summary_{model_name}_{version}.png"
+
+        plot_shap_summary(
+            global_shap["shap_values"],
+            X_transformed,
+            trans_feature_names,
+            plot_path,
+            plot_type="bar",
+            max_display=config.xai.max_display_features,
+            figsize=config.xai.summary_figsize
+        )
+        print(f"    SHAP artifacts saved: {plot_path}")
+    except Exception as e:
+        print(f"    Warning: Failed to generate SHAP explanations: {e}")

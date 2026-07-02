@@ -73,3 +73,5 @@ models/registry/test_aim_smote
 mlruns/
 mlruns
 
+#xai reports
+reports/xai/

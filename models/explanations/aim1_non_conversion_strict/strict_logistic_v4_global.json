@@ -1,0 +1,26 @@
+{
+  "aim": "aim1_non_conversion_strict",
+  "model": "strict_logistic",
+  "version": "v4",
+  "feature_names": [
+    "SEX",
+    "AGE (YEARS)",
+    "BMI",
+    "baseline_symptom_count"
+  ],
+  "mean_abs_shap": [
+    0.4803847324366023,
+    0.18194646222231042,
+    0.12219272214577731,
+    0.21147729963066172
+  ],
+  "std_shap": [
+    0.5322414051700092,
+    0.241429466568573,
+    0.14760474566480056,
+    0.27415122649907725
+  ],
+  "base_value": 0.024813274305023003,
+  "n_background_samples": 11,
+  "generated_at": "2026-07-02T16:42:52.952203"
+}

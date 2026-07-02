@@ -1,0 +1,50 @@
+{
+  "aim": "aim2_contact_risk",
+  "model": "xgboost",
+  "version": "v9",
+  "feature_names": [
+    "AGE",
+    "SEX",
+    "WEIGHT",
+    "TEMPERATURE",
+    "COUGH",
+    "FEVER",
+    "WEIGHT LOSS",
+    "NIGHT SWEATS",
+    "DYSPNEA",
+    "CHEST PAIN",
+    "HEMOPTYSIS",
+    "HIV STATUS"
+  ],
+  "mean_abs_shap": [
+    0.0,
+    0.03932059928774834,
+    0.0,
+    0.047511715441942215,
+    4.3148884773254395,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "std_shap": [
+    0.0,
+    0.03908347710967064,
+    0.0,
+    0.047233931720256805,
+    3.229679822921753,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "base_value": 1.4151569604873657,
+  "n_background_samples": 36,
+  "generated_at": "2026-07-02T16:43:06.294444"
+}

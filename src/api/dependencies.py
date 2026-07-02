@@ -17,7 +17,14 @@ def _get_champion_meta(aim: str) -> Optional[dict]:
     for meta_path in METADATA_DIR.glob(f"{aim}_*.json"):
         with open(meta_path) as f:
             meta = json.load(f)
+        # Skip files that belong to a different aim (e.g. aim1_non_conversion_strict
+        # files matching the aim1_non_conversion glob).
+        if meta.get("aim") != aim:
+            continue
         score = meta.get("cv_auc_mean")
+        # Fall back to train_auc when cv_auc_mean is NaN or missing.
+        if score is None or (isinstance(score, float) and score != score):
+            score = meta.get("train_auc")
         if score is not None and not (
             isinstance(score, float) and score != score
         ) and score > best_score:
@@ -54,5 +61,21 @@ def get_feature_cols(aim: str) -> list:
     return meta.get("feature_cols", [])
 
 
+_explainer_cache = {}
+
+
+def get_explainer(aim: str, model_name: str, version: str):
+    from src.explain.shap_explainer import load_explainer
+    key = f"{aim}_{model_name}_{version}"
+    if key not in _explainer_cache:
+        _explainer_cache[key] = load_explainer(aim, model_name, version)
+    return _explainer_cache[key]
+
+
+def clear_explainer_cache():
+    _explainer_cache.clear()
+
+
 def clear_cache():
     _model_cache.clear()
+    _explainer_cache.clear()

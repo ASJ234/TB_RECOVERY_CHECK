@@ -87,7 +87,9 @@ def run_aim1(force: bool = False):
 
         evaluate_loocv(
             per_fold, model_name="strict_logistic",
-            aim="aim1_non_conversion", version=strict_meta["version"],
+            aim="aim1_non_conversion_strict", version=strict_meta["version"],
+            X=X_strict, y=y_strict, pipeline=pipeline_strict,
+            feature_cols=strict_feature_cols
         )
 
         save_scaler(preprocessor_strict, "aim1_strict", strict_meta["version"])
@@ -141,7 +143,10 @@ def run_aim1(force: bool = False):
         version = results[name]["version"]
         save_scaler(preprocessor, "aim1", version)
         if len(X_test) > 0:
-            evaluate_model(pipeline, X_test, y_test, name, "aim1_non_conversion", version)
+            evaluate_model(
+                pipeline, X_test, y_test, name, "aim1_non_conversion", version,
+                X_train=X_train, feature_cols=feature_cols
+            )
 
     champion = get_champion_model("aim1_non_conversion")
     if champion:
@@ -184,7 +189,10 @@ def run_aim2(force: bool = False):
         version = results[name]["version"]
         save_scaler(preprocessor, "aim2", version)
         if len(X_test) > 0:
-            evaluate_model(pipeline, X_test, y_test, name, "aim2_contact_risk", version)
+            evaluate_model(
+                pipeline, X_test, y_test, name, "aim2_contact_risk", version,
+                X_train=X_train, feature_cols=feature_cols
+            )
 
     champion = get_champion_model("aim2_contact_risk")
     if champion:

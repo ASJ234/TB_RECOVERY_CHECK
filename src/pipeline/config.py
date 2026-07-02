@@ -86,11 +86,24 @@ class SimulationConfig:
 
 
 @dataclass
+class XAIConfig:
+    enabled: bool = True
+    background_samples: int = 500
+    max_display_features: int = 20
+    approximate: bool = True
+    save_explainers: bool = True
+    plot_format: str = "png"
+    summary_figsize: tuple[int, int] = (10, 8)
+    waterfall_figsize: tuple[int, int] = (8, 6)
+
+
+@dataclass
 class PipelineConfig:
     aim1: Aim1Config = field(default_factory=Aim1Config)
     aim2: Aim2Config = field(default_factory=Aim2Config)
     monitoring: MonitoringConfig = field(default_factory=MonitoringConfig)
     simulation: SimulationConfig = field(default_factory=SimulationConfig)
+    xai: XAIConfig = field(default_factory=XAIConfig)
     skip_if_data_unchanged: bool = True
     save_plots: bool = True
     log_level: str = "INFO"
@@ -123,11 +136,19 @@ class PipelineConfig:
         sim_data = data.get("simulation", {})
         simulation = SimulationConfig(**sim_data)
 
+        xai_data = data.get("xai", {})
+        if "summary_figsize" in xai_data and isinstance(xai_data["summary_figsize"], list):
+            xai_data["summary_figsize"] = tuple(xai_data["summary_figsize"])
+        if "waterfall_figsize" in xai_data and isinstance(xai_data["waterfall_figsize"], list):
+            xai_data["waterfall_figsize"] = tuple(xai_data["waterfall_figsize"])
+        xai = XAIConfig(**xai_data)
+
         return cls(
             aim1=aim1,
             aim2=aim2,
             monitoring=monitoring,
             simulation=simulation,
+            xai=xai,
             skip_if_data_unchanged=data.get("skip_if_data_unchanged", True),
             save_plots=data.get("save_plots", True),
             log_level=data.get("log_level", "INFO"),

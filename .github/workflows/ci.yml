@@ -50,6 +50,9 @@ jobs:
       - name: Run tests
         run: |
           python -m pytest tests/ -v --tb=short
+      - name: Run XAI tests
+        run: |
+          python -m pytest tests/test_explain.py -v
       - name: Test pipeline
         run: |
           python -m src.pipeline.training_pipeline --aim all --force --skip-data-check

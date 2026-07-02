@@ -4,6 +4,8 @@ import pandas as pd
 import io
 import json
 from pathlib import Path
+import numpy as np
+from typing import Optional, List
 
 from src.api.schemas import (
     Aim1PredictionRequest,
@@ -20,8 +22,10 @@ from src.api.schemas import (
     SimulationResultsResponse,
     SimulationResultSummary,
     SimulationScenariosResponse,
+    GlobalExplanationResponse,
+    InstanceExplanationResponse,
 )
-from src.api.dependencies import get_model, get_feature_cols, clear_cache
+from src.api.dependencies import get_model, get_feature_cols, clear_cache, get_explainer, clear_explainer_cache
 from src.models.predict import predict_single, predict_batch, get_model_info, METADATA_DIR
 from src.monitoring.data_drift import compute_data_drift
 from src.monitoring.model_drift import compute_model_drift
@@ -255,6 +259,7 @@ def model_info(aim: str = "1", params: str = None):
 @app.post("/cache/clear")
 def clear_model_cache():
     clear_cache()
+    clear_explainer_cache()
     return {"status": "cache cleared"}
 
 
@@ -525,3 +530,222 @@ def _get_feature_cols_for_aim(aim: str):
         df = pd.read_csv(data_dir / "aim2_contacts_imputed.csv")
         _, cols = get_aim2_features_target(df)
     return df, cols
+
+
+def explain_instance_helper(aim: str, request_data, version: Optional[str] = None):
+    pipeline, version, model_name = get_model(aim, version=version)
+    feature_cols = get_feature_cols(aim)
+    explainer = get_explainer(aim, model_name, version)
+    
+    # 1. Map features to standard columns
+    features = request_data.model_dump(by_alias=True)
+    mapped = {}
+    feature_map = FEATURE_MAP_AIM1 if aim == "aim1_non_conversion" else FEATURE_MAP_AIM2
+    for api_key, model_key in feature_map.items():
+        val = features.get(api_key) or features.get(model_key)
+        if val is not None:
+            mapped[model_key] = val
+            
+    df_instance = pd.DataFrame([mapped])
+    df_instance = df_instance.reindex(columns=feature_cols)
+    
+    # 2. Get prediction probability and prediction
+    from src.models.predict import predict_single
+    pred_res = predict_single(pipeline, mapped, feature_cols)
+    
+    # 3. Compute SHAP
+    preprocessor = pipeline.named_steps["preprocessor"]
+    from src.explain.shap_explainer import compute_instance_shap
+    instance_result = compute_instance_shap(explainer, df_instance, feature_cols, preprocessor)
+    
+    # 4. Map SHAP to original features for JSON response
+    from src.explain.api_explain import map_shap_to_original_features
+    orig_shap, orig_names = map_shap_to_original_features(
+        instance_result["shap_values"],
+        instance_result["feature_names"],
+        feature_cols,
+        preprocessor
+    )
+    
+    orig_features = {}
+    for col in feature_cols:
+        val = df_instance.iloc[0].get(col)
+        if pd.isna(val) or val is None:
+            orig_features[col] = 0.0
+        elif isinstance(val, (int, float, np.integer, np.floating)):
+            orig_features[col] = float(val)
+        else:
+            orig_features[col] = str(val)
+            
+    # 5. Generate plots
+    from src.explain.visualizations import create_waterfall_plot_base64, create_force_plot_base64
+    X_trans_row = preprocessor.transform(df_instance)[0]
+    
+    waterfall_b64 = create_waterfall_plot_base64(
+        shap_values=instance_result["shap_values"],
+        base_value=instance_result["base_value"],
+        features=X_trans_row,
+        feature_names=instance_result["feature_names"]
+    )
+    
+    force_b64 = create_force_plot_base64(
+        shap_values=instance_result["shap_values"],
+        base_value=instance_result["base_value"],
+        features=X_trans_row,
+        feature_names=instance_result["feature_names"]
+    )
+    
+    return InstanceExplanationResponse(
+        aim=aim,
+        model=model_name,
+        version=version,
+        prediction=pred_res["prediction"],
+        probability=pred_res["probability"],
+        base_value=instance_result["base_value"],
+        features=orig_features,
+        shap_values=orig_shap,
+        feature_names=orig_names,
+        waterfall_plot_base64=waterfall_b64,
+        force_plot_base64=force_b64
+    )
+
+
+@app.get("/explain/aim1/global", response_model=GlobalExplanationResponse)
+def explain_aim1_global(version: Optional[str] = None):
+    try:
+        pipeline, version, model_name = get_model("aim1_non_conversion", version=version)
+        aim = "aim1_non_conversion"
+        
+        from src.explain.shap_explainer import load_global_explanation
+        global_explanation = load_global_explanation(aim, model_name, version)
+        
+        plot_path = METADATA_DIR / aim / f"shap_summary_{model_name}_{version}.png"
+        plot_b64 = None
+        if plot_path.exists():
+            import base64
+            plot_b64 = base64.b64encode(plot_path.read_bytes()).decode("utf-8")
+            
+        return GlobalExplanationResponse(
+            aim=aim,
+            model=model_name,
+            version=version,
+            feature_names=global_explanation["feature_names"],
+            mean_abs_shap=global_explanation["mean_abs_shap"],
+            std_shap=global_explanation["std_shap"],
+            base_value=global_explanation["base_value"],
+            n_background_samples=global_explanation["n_background_samples"],
+            generated_at=global_explanation["generated_at"],
+            plot_base64=plot_b64
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/explain/aim1/strict/global", response_model=GlobalExplanationResponse)
+def explain_aim1_strict_global(version: Optional[str] = None):
+    try:
+        pipeline, version, model_name = get_model("aim1_non_conversion_strict", version=version)
+        aim = "aim1_non_conversion_strict"
+        
+        from src.explain.shap_explainer import load_global_explanation
+        global_explanation = load_global_explanation(aim, model_name, version)
+        
+        plot_path = METADATA_DIR / aim / f"loocv_shap_summary_{model_name}_{version}.png"
+        plot_b64 = None
+        if plot_path.exists():
+            import base64
+            plot_b64 = base64.b64encode(plot_path.read_bytes()).decode("utf-8")
+            
+        return GlobalExplanationResponse(
+            aim=aim,
+            model=model_name,
+            version=version,
+            feature_names=global_explanation["feature_names"],
+            mean_abs_shap=global_explanation["mean_abs_shap"],
+            std_shap=global_explanation["std_shap"],
+            base_value=global_explanation["base_value"],
+            n_background_samples=global_explanation["n_background_samples"],
+            generated_at=global_explanation["generated_at"],
+            plot_base64=plot_b64
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/explain/aim2/global", response_model=GlobalExplanationResponse)
+def explain_aim2_global(version: Optional[str] = None):
+    try:
+        pipeline, version, model_name = get_model("aim2_contact_risk", version=version)
+        aim = "aim2_contact_risk"
+        
+        from src.explain.shap_explainer import load_global_explanation
+        global_explanation = load_global_explanation(aim, model_name, version)
+        
+        plot_path = METADATA_DIR / aim / f"shap_summary_{model_name}_{version}.png"
+        plot_b64 = None
+        if plot_path.exists():
+            import base64
+            plot_b64 = base64.b64encode(plot_path.read_bytes()).decode("utf-8")
+            
+        return GlobalExplanationResponse(
+            aim=aim,
+            model=model_name,
+            version=version,
+            feature_names=global_explanation["feature_names"],
+            mean_abs_shap=global_explanation["mean_abs_shap"],
+            std_shap=global_explanation["std_shap"],
+            base_value=global_explanation["base_value"],
+            n_background_samples=global_explanation["n_background_samples"],
+            generated_at=global_explanation["generated_at"],
+            plot_base64=plot_b64
+        )
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/explain/aim1/instance", response_model=InstanceExplanationResponse)
+def explain_aim1_instance(request: Aim1PredictionRequest, version: Optional[str] = None):
+    try:
+        return explain_instance_helper("aim1_non_conversion", request, version=version)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/explain/aim2/instance", response_model=InstanceExplanationResponse)
+def explain_aim2_instance(request: Aim2PredictionRequest, version: Optional[str] = None):
+    try:
+        return explain_instance_helper("aim2_contact_risk", request, version=version)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/explain/aim1/batch", response_model=list[InstanceExplanationResponse])
+def explain_aim1_batch(request: BatchPredictionRequest):
+    try:
+        responses = []
+        for instance_dict in request.instances:
+            req_obj = Aim1PredictionRequest(**instance_dict)
+            res = explain_instance_helper("aim1_non_conversion", req_obj)
+            responses.append(res)
+        return responses
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/explain/aim2/batch", response_model=list[InstanceExplanationResponse])
+def explain_aim2_batch(request: BatchPredictionRequest):
+    try:
+        responses = []
+        for instance_dict in request.instances:
+            req_obj = Aim2PredictionRequest(**instance_dict)
+            res = explain_instance_helper("aim2_contact_risk", req_obj)
+            responses.append(res)
+        return responses
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

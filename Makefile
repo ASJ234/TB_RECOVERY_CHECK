@@ -25,6 +25,8 @@ help:
 	@echo "  deploy          Start FastAPI + ngrok tunnel"
 	@echo "  clean           Remove venv, caches, build artifacts"
 	@echo "  data            Re-process raw data into clean CSVs"
+	@echo "  xai             Generate XAI PDF reports for champion models"
+	@echo "  xai-clean       Clean cached SHAP explainers"
 
 install:
 	$(PYTHON) -m venv $(VENV_DIR)
@@ -92,3 +94,9 @@ clean:
 	rm -rf $(VENV_DIR) __pycache__ .pytest_cache models/metadata/*.json
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .ipynb_checkpoints -exec rm -rf {} + 2>/dev/null || true
+
+xai:
+	PYTHONPATH=. python scripts/generate_xai_reports.py
+
+xai-clean:
+	PYTHONPATH=. python scripts/_cleanup_explainers.py
