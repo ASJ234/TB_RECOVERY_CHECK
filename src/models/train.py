@@ -3,9 +3,12 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score, StratifiedKFold, LeaveOneOut
+from sklearn.model_selection import cross_val_score, cross_val_predict, StratifiedKFold, LeaveOneOut
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import roc_auc_score, average_precision_score
+from sklearn.metrics import (
+    roc_auc_score, average_precision_score,
+    accuracy_score, precision_score, recall_score, f1_score,
+)
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
 import xgboost as xgb
@@ -114,9 +117,26 @@ def train_models(
             else:
                 auc_mean = float("nan")
                 auc_std = float("nan")
+
+            cv_accuracy = float("nan")
+            cv_precision = float("nan")
+            cv_recall = float("nan")
+            cv_f1 = float("nan")
+            if n_samples >= cv_folds and n_samples >= 2:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", message="Only one class is present")
+                    cv_preds = cross_val_predict(pipeline, X_train, y_train, cv=cv, method="predict")
+                    cv_accuracy = float(accuracy_score(y_train, cv_preds))
+                    cv_precision = float(precision_score(y_train, cv_preds, zero_division=0))
+                    cv_recall = float(recall_score(y_train, cv_preds, zero_division=0))
+                    cv_f1 = float(f1_score(y_train, cv_preds, zero_division=0))
         except Exception:
             auc_mean = float("nan")
             auc_std = float("nan")
+            cv_accuracy = float("nan")
+            cv_precision = float("nan")
+            cv_recall = float("nan")
+            cv_f1 = float("nan")
 
         try:
             y_pred_proba = pipeline.predict_proba(X_train)[:, 1]
@@ -145,6 +165,10 @@ def train_models(
             "train_avg_precision": float(train_ap),
             "cv_auc_mean": float(auc_mean) if not isinstance(auc_mean, float) else auc_mean,
             "cv_auc_std": float(auc_std) if not isinstance(auc_std, float) else auc_std,
+            "cv_accuracy": float(cv_accuracy) if not isinstance(cv_accuracy, float) else cv_accuracy,
+            "cv_precision": float(cv_precision) if not isinstance(cv_precision, float) else cv_precision,
+            "cv_recall": float(cv_recall) if not isinstance(cv_recall, float) else cv_recall,
+            "cv_f1": float(cv_f1) if not isinstance(cv_f1, float) else cv_f1,
             "params_hash": _compute_params_hash(pipeline.get_params()),
             "data_hash": _compute_data_hash(X_train),
             "cv_folds": int(cv_folds if n_samples >= cv_folds else n_samples),
@@ -159,8 +183,12 @@ def train_models(
 
         results[name] = metadata
         trained_models[name] = (pipeline, model_path)
+        f1_str = f", CV F1={cv_f1:.3f}" if not np.isnan(cv_f1) else ""
         print(f"  {name} ({version}): CV AUC={auc_mean:.3f} ± {auc_std:.3f}, "
-              f"Train AUC={train_auc:.3f}")
+              f"Train AUC={train_auc:.3f}, "
+              f"CV Accuracy={cv_accuracy:.3f}, "
+              f"CV Precision={cv_precision:.3f}, "
+              f"CV Recall={cv_recall:.3f}{f1_str}")
 
     return results, trained_models
 
@@ -307,6 +335,10 @@ def update_registry_csv(results: dict, aim: str):
             "train_auc": meta["train_auc"],
             "cv_auc_mean": meta["cv_auc_mean"],
             "cv_auc_std": meta["cv_auc_std"],
+            "cv_accuracy": meta.get("cv_accuracy", float("nan")),
+            "cv_precision": meta.get("cv_precision", float("nan")),
+            "cv_recall": meta.get("cv_recall", float("nan")),
+            "cv_f1": meta.get("cv_f1", float("nan")),
             "train_avg_precision": meta["train_avg_precision"],
             "data_hash": meta["data_hash"],
             "params_hash": meta["params_hash"],

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import sys
+import json
 import argparse
 import hashlib
 import joblib
@@ -85,12 +86,22 @@ def run_aim1(force: bool = False):
             random_state=aim1_cfg.random_state,
         )
 
-        evaluate_loocv(
+        loocv_metrics = evaluate_loocv(
             per_fold, model_name="strict_logistic",
             aim="aim1_non_conversion", version=strict_meta["version"],
         )
 
         save_scaler(preprocessor_strict, "aim1_strict", strict_meta["version"])
+
+        strict_meta["cv_accuracy"] = loocv_metrics.get("accuracy", float("nan"))
+        strict_meta["cv_precision"] = loocv_metrics.get("precision", float("nan"))
+        strict_meta["cv_recall"] = loocv_metrics.get("recall", float("nan"))
+        strict_meta["cv_f1"] = loocv_metrics.get("f1", float("nan"))
+        strict_meta["cv_auc_mean"] = loocv_metrics.get("roc_auc", strict_meta.get("cv_auc_mean", float("nan")))
+
+        meta_path = METADATA_DIR / f"aim1_non_conversion_strict_logistic_{strict_meta['version']}.json"
+        with open(meta_path, "w") as f:
+            json.dump(strict_meta, f, indent=2)
 
         strict_registry_entry = {
             "aim": strict_meta["aim"],
@@ -101,6 +112,10 @@ def run_aim1(force: bool = False):
             "train_auc": strict_meta.get("cv_auc_mean", float("nan")),
             "cv_auc_mean": strict_meta.get("cv_auc_mean", float("nan")),
             "cv_auc_std": float("nan"),
+            "cv_accuracy": strict_meta.get("cv_accuracy", float("nan")),
+            "cv_precision": strict_meta.get("cv_precision", float("nan")),
+            "cv_recall": strict_meta.get("cv_recall", float("nan")),
+            "cv_f1": strict_meta.get("cv_f1", float("nan")),
             "train_avg_precision": float("nan"),
             "data_hash": strict_meta["data_hash"],
             "params_hash": strict_meta["params_hash"],
