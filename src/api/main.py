@@ -637,6 +637,8 @@ def explain_aim1_global(version: Optional[str] = None):
             generated_at=global_explanation["generated_at"],
             plot_base64=plot_b64
         )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
     except Exception as e:
@@ -670,6 +672,8 @@ def explain_aim1_strict_global(version: Optional[str] = None):
             generated_at=global_explanation["generated_at"],
             plot_base64=plot_b64
         )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
     except Exception as e:
@@ -703,6 +707,8 @@ def explain_aim2_global(version: Optional[str] = None):
             generated_at=global_explanation["generated_at"],
             plot_base64=plot_b64
         )
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"Global explanation not found: {e}")
     except Exception as e:
