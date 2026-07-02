@@ -160,7 +160,10 @@ def _get_transformed_feature_names(preprocessor, original_feature_names: list[st
     for name, trans, cols in preprocessor.transformers_:
         if name == "remainder":
             continue
-        if hasattr(trans, "named_steps") and "encoder" in trans.named_steps:
+        if hasattr(trans, "get_feature_names_out"):
+            encoded_names = trans.get_feature_names_out(cols)
+            feature_names.extend(encoded_names)
+        elif hasattr(trans, "named_steps") and "encoder" in trans.named_steps:
             encoder = trans.named_steps["encoder"]
             if hasattr(encoder, "get_feature_names_out"):
                 encoded_names = encoder.get_feature_names_out(cols)
