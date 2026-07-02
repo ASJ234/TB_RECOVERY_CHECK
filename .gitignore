@@ -75,3 +75,6 @@ mlruns
 
 #xai reports
 reports/xai/
+
+#test_strict_strict
+models/registry/test_strict_strict/
