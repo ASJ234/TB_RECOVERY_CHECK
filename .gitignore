@@ -30,9 +30,10 @@ Thumbs.db
 # Data
 data/cleaned/*.csv
 
-# Models (track registry CSV, not individual model files)
+# Models (registry CSV excluded — grows unboundedly and causes merge conflicts)
 models/registry/aim1_non_conversion/*.pkl
 models/registry/aim2_contact_risk/*.pkl
+models/registry/model_registry.csv
 models/scalers/*.pkl
 models/metadata/*.json
 models/metadata/*.png
@@ -77,4 +78,4 @@ mlruns
 reports/xai/
 
 #test_strict_strict
-models/registry/test_strict_strict/
+models/registry/test_strict_strict/*
