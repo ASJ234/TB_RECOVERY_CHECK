@@ -347,7 +347,15 @@ def update_registry_csv(results: dict, aim: str):
 
     df_new = pd.DataFrame(rows)
     if registry_path.exists():
-        df_old = pd.read_csv(registry_path)
+        try:
+            df_old = pd.read_csv(registry_path)
+        except pd.errors.ParserError:
+            df_old = pd.read_csv(registry_path, on_bad_lines="skip")
+        # Align columns: keep old columns, add any new ones
+        for col in df_new.columns:
+            if col not in df_old.columns:
+                df_old[col] = float("nan")
+        df_new = df_new[df_old.columns]
         df_all = pd.concat([df_old, df_new], ignore_index=True)
     else:
         df_all = df_new

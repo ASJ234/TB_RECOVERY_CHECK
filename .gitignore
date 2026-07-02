@@ -69,6 +69,7 @@ coverage.xml
 # Testing 
 models/registry/test_aim
 models/registry/test_aim_smote
+models/registry/test_*/
 
 # MLflow tracking
 mlruns/
@@ -77,5 +78,3 @@ mlruns
 #xai reports
 reports/xai/
 
-#test_strict_strict
-models/registry/test_strict_strict/*
