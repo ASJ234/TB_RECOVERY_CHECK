@@ -1,7 +1,6 @@
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
 import numpy as np
 import shap #type: ignore
 import base64
@@ -224,7 +223,8 @@ def create_summary_plot_base64(
     subtitle: str = "",
 ) -> str:
     """Create summary plot and return as base64 string."""
-    import tempfile, os
+    import tempfile
+    import os
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         tmp_path = tmp.name
     plot_shap_summary(shap_values, features, feature_names, tmp_path,
@@ -246,7 +246,8 @@ def create_waterfall_plot_base64(
     subtitle: str = "",
 ) -> str:
     """Create waterfall plot and return as base64 string."""
-    import tempfile, os
+    import tempfile
+    import os
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         tmp_path = tmp.name
     plot_shap_waterfall(shap_values, base_value, features, feature_names,
@@ -267,7 +268,8 @@ def create_force_plot_base64(
     subtitle: str = "",
 ) -> str:
     """Create force plot and return as base64 string."""
-    import tempfile, os
+    import tempfile
+    import os
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
         tmp_path = tmp.name
     plot_shap_force(shap_values, base_value, features, feature_names,

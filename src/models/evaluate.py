@@ -235,8 +235,7 @@ def generate_shap_explanations(pipeline, X, feature_cols, aim, model_name, versi
     try:
         from src.explain import (
             create_explainer, compute_global_shap,
-            plot_shap_summary, global_explanation_to_json,
-            save_explainer, save_global_explanation
+            plot_shap_summary, save_explainer, save_global_explanation
         )
         from src.explain.shap_explainer import _get_background_sample
         from src.pipeline.config import get_config

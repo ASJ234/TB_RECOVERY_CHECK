@@ -5,7 +5,7 @@ import io
 import json
 from pathlib import Path
 import numpy as np
-from typing import Optional, List
+from typing import Optional
 
 from src.api.schemas import (
     Aim1PredictionRequest,

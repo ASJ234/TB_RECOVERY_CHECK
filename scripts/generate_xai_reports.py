@@ -4,7 +4,6 @@ Generates SHAP-based explainability reports for all trained TB Recovery Check mo
 Produces summary plots, waterfall plots for sample patients, and a consolidated report.
 """
 import sys
-import json
 import warnings
 from pathlib import Path
 
@@ -13,22 +12,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-import numpy as np
-import pandas as pd
-import joblib
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import joblib  # noqa: E402
 
-from src.explain.shap_explainer import (
+from src.explain.shap_explainer import (  # noqa: E402
     create_explainer,
     compute_global_shap,
     compute_instance_shap,
-    load_explainer,
-    load_global_explanation,
     save_explainer,
     save_global_explanation,
     EXPLAINERS_DIR,
-    EXPLANATIONS_DIR,
 )
-from src.explain.visualizations import (
+from src.explain.visualizations import (  # noqa: E402
     plot_shap_summary,
     plot_shap_waterfall,
     plot_shap_force,
@@ -170,12 +166,12 @@ def generate_report_for_model(aim: str, model_name: str, version: str):
             explainer, preprocessor = create_explainer(pipeline, X, model_name)
             save_explainer(explainer, aim, model_name, version)
     else:
-        print(f"  Creating new SHAP explainer...")
+        print("  Creating new SHAP explainer...")
         explainer, preprocessor = create_explainer(pipeline, X, model_name)
         save_explainer(explainer, aim, model_name, version)
 
     # 4. Compute global SHAP
-    print(f"  Computing global SHAP values...")
+    print("  Computing global SHAP values...")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         global_result = compute_global_shap(explainer, X, feature_cols, preprocessor)
@@ -188,7 +184,7 @@ def generate_report_for_model(aim: str, model_name: str, version: str):
     summary_title = f"Global Feature Importance — {aim_label}"
     summary_subtitle = f"Model: {model_label} ({version})  |  Mean |SHAP| across {global_result['n_samples']} samples"
 
-    print(f"  Generating global summary bar plot...")
+    print("  Generating global summary bar plot...")
     plot_shap_summary(
         global_result["shap_values"],
         global_result["features"],
@@ -257,14 +253,14 @@ def generate_report_for_model(aim: str, model_name: str, version: str):
 
     summary_lines = [
         f"# XAI Report: {aim} / {model_name} ({version})",
-        f"",
+        "",
         f"Generated at: {pd.Timestamp.now().isoformat()}",
         f"Dataset: {len(X)} samples, {len(feature_cols)} original features",
         f"Transformed features: {len(global_result['feature_names'])}",
         f"Base value (expected output): {global_result['base_value']:.4f}",
-        f"",
-        f"## Top 20 Most Important Features (mean |SHAP|)",
-        f"",
+        "",
+        "## Top 20 Most Important Features (mean |SHAP|)",
+        "",
         f"{'Rank':<6} {'Feature':<45} {'Mean |SHAP|':>12}",
         f"{'-'*6} {'-'*45} {'-'*12}",
     ]
@@ -272,9 +268,9 @@ def generate_report_for_model(aim: str, model_name: str, version: str):
         summary_lines.append(f"{rank:<6} {fname:<45} {importance:>12.6f}")
 
     summary_lines.extend([
-        f"",
-        f"## Output Files",
-        f"- shap_summary_bar.png  — Global feature importance bar chart",
+        "",
+        "## Output Files",
+        "- shap_summary_bar.png  — Global feature importance bar chart",
     ])
     for idx in sample_indices:
         summary_lines.append(f"- waterfall_patient_{idx}.png  — Waterfall plot for patient #{idx}")
@@ -316,7 +312,7 @@ def main():
             traceback.print_exc()
 
     print(f"\n{'='*60}")
-    print(f"  XAI Report Generation Complete")
+    print("  XAI Report Generation Complete")
     print(f"  {len(report_dirs)} report(s) generated in: {REPORTS_DIR}")
     print(f"{'='*60}")
 

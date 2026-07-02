@@ -5,9 +5,7 @@ import pandas as pd
 import shap
 import joblib
 from pathlib import Path
-from typing import Optional
 
-from src.data.feature_engineering import build_preprocessor
 
 MODELS_DIR = Path(__file__).resolve().parents[2] / "models"
 EXPLAINERS_DIR = MODELS_DIR / "explainers"
