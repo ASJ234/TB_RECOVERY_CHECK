@@ -414,6 +414,7 @@ def start_simulation(request: SimulationStartRequest):
         records_per_window=request.records_per_window,
         pace_seconds=request.pace_seconds,
         fallback=request.fallback,
+        llm_provider=request.llm_provider,
         llm_model=request.llm_model,
     )
 

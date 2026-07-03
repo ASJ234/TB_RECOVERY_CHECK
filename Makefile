@@ -1,7 +1,10 @@
 .PHONY: install clean lint test train eda api deploy help train-monitor synthetic drift-check mlflow-ui mlflow-ui-bg simulate-stream simulate-list simulate-plot
 
 VENV_DIR ?= venv
-PYTHON := python3
+PYTHON := $(VENV_DIR)/bin/python
+ifeq ($(wildcard $(PYTHON)),)
+    PYTHON := python3
+endif
 
 help:
 	@echo "TB Recovery Check - Makefile"
@@ -36,37 +39,37 @@ lint:
 	ruff check src/ tests/
 
 test:
-	python -m pytest tests/ -v --tb=short
+	$(PYTHON) -m pytest tests/ -v --tb=short
 
 train:
-	python -m src.pipeline.training_pipeline --aim all --force
+	$(PYTHON) -m src.pipeline.training_pipeline --aim all --force
 
 train-aim1:
-	python -m src.pipeline.training_pipeline --aim 1 --force
+	$(PYTHON) -m src.pipeline.training_pipeline --aim 1 --force
 
 train-aim2:
-	python -m src.pipeline.training_pipeline --aim 2 --force
+	$(PYTHON) -m src.pipeline.training_pipeline --aim 2 --force
 
 data:
-	python -m src.data.clean_data
+	$(PYTHON) -m src.data.clean_data
 
 train-monitor:
-	python -m src.pipeline.training_pipeline --aim all --monitoring
+	$(PYTHON) -m src.pipeline.training_pipeline --aim all --monitoring
 
 synthetic:
-	python -m src.monitoring.synthetic_drift
+	$(PYTHON) -m src.monitoring.synthetic_drift
 
 drift-check:
-	PYTHONPATH=. python scripts/drift_check.py
+	PYTHONPATH=. $(PYTHON) scripts/drift_check.py
 
 simulate-stream:
-	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0)
+	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-provider $(or $(LLM_PROVIDER),github_models) --llm-model "$(or $(LLM_MODEL),gpt-4o-mini)"
 
 simulate-all:
-	PYTHONPATH=. python -m src.simulation.stream_simulator --scenario all --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0)
+	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario all --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-provider $(or $(LLM_PROVIDER),github_models) --llm-model "$(or $(LLM_MODEL),gpt-4o-mini)"
 
 simulate-list:
-	PYTHONPATH=. python -m src.simulation.stream_simulator --list-scenarios
+	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --list-scenarios
 
 mlflow-ui:
 	@echo "Open http://127.0.0.1:5000 in your browser."
@@ -96,7 +99,7 @@ clean:
 	find . -type d -name .ipynb_checkpoints -exec rm -rf {} + 2>/dev/null || true
 
 xai:
-	PYTHONPATH=. python scripts/generate_xai_reports.py
+	PYTHONPATH=. $(PYTHON) scripts/generate_xai_reports.py
 
 xai-clean:
-	PYTHONPATH=. python scripts/_cleanup_explainers.py
+	PYTHONPATH=. $(PYTHON) scripts/_cleanup_explainers.py

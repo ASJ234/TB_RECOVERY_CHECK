@@ -24,12 +24,16 @@ class DataGenerator:
         self.df = pd.read_csv(DATA_DIR / csv_map[self.aim])
         self._compute_distributions()
 
+    _ID_COLUMNS = {"Sample ID", "USUBJID", "SUBJID", "PATIENT_ID", "STUDY_ID"}
+
     def _compute_distributions(self):
         self.distributions = {}
         self.feature_order = []
 
         for c in self.df.columns:
             if c.startswith("Unnamed"):
+                continue
+            if c in self._ID_COLUMNS:
                 continue
             self.feature_order.append(c)
             vals = self.df[c].dropna()

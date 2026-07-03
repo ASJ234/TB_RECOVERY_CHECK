@@ -8,7 +8,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.simulation.llm_client import LLMClient
+from src.simulation.llm_client import LLMClient, GitHubModelsClient
 from src.simulation.drift_scenarios import SCENARIOS, list_scenarios, get_scenario
 from src.simulation.data_generator import DataGenerator
 from src.simulation.outputs import SimulationOutputs
@@ -31,7 +31,8 @@ class StreamSimulator:
         records_per_window: int = 10,
         pace_seconds: float = 1.0,
         fallback: bool = True,
-        llm_model: str = "tinyllama",
+        llm_model: str = "gpt-4o-mini",
+        llm_provider: str = "github_models",
         random_state: int = 42,
     ):
         self.scenario = get_scenario(scenario_name)
@@ -48,15 +49,19 @@ class StreamSimulator:
         self.reference_distributions = self.data_gen.get_reference_distributions()
         self.reference_df = self.data_gen.df
 
-        self.llm = LLMClient(
-            model=llm_model,
-            fallback=fallback,
-        )
+        self.llm = self._build_llm_client(llm_provider, llm_model, fallback)
         self.outputs = SimulationOutputs(scenario_name)
-
         self.results = []
         self.alerts = []
         self.pipeline = None
+
+    def _build_llm_client(self, provider: str, model: str, fallback: bool):
+        if provider == "ollama":
+            return LLMClient(model=model, fallback=fallback)
+        elif provider == "github_models":
+            return GitHubModelsClient(model=model, fallback=fallback)
+        else:
+            raise ValueError(f"Unknown LLM provider: {provider}. Use 'ollama' or 'github_models'.")
 
     def _load_champion_model(self):
         try:
@@ -85,6 +90,8 @@ class StreamSimulator:
         logger.info("Aim: %s", self.aim)
         logger.info("Records per window: %d", self.records_per_window)
         logger.info("Pace: %.1f seconds per window", self.pace_seconds)
+        provider_name = "Ollama" if isinstance(self.llm, LLMClient) else "GitHub Models"
+        logger.info("LLM provider: %s (%s)", provider_name, self.llm.model)
         logger.info("LLM fallback: %s", "enabled" if self.llm.fallback else "disabled")
         logger.info("=" * 60)
 
@@ -114,6 +121,7 @@ class StreamSimulator:
             )
 
             result = self._run_drift_checks(window_df, hour)
+            result["llm_source"] = drift_params.get("source", "llm")
             self.results.append(result)
 
             if result.get("drift_detected") or result.get("model_drift_detected"):
@@ -376,8 +384,13 @@ def parse_args():
         help="Random seed (default: 42)",
     )
     parser.add_argument(
-        "--llm-model", type=str, default="tinyllama",
-        help="Ollama model name (default: tinyllama)",
+        "--llm-model", type=str, default="gpt-4o-mini",
+        help="LLM model name (default: gpt-4o-mini for GitHub Models)",
+    )
+    parser.add_argument(
+        "--llm-provider", type=str, default="github_models",
+        choices=["ollama", "github_models"],
+        help="LLM provider to use (default: github_models)",
     )
     return parser.parse_args()
 
@@ -405,6 +418,7 @@ def main():
             pace_seconds=args.pace,
             fallback=not args.no_fallback,
             llm_model=args.llm_model,
+            llm_provider=args.llm_provider,
             random_state=args.seed,
         )
         sim.run()
