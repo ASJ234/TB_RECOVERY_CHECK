@@ -14,6 +14,7 @@ from src.explain.shap_explainer import (
 )
 from src.explain.api_explain import map_shap_to_original_features
 from src.api.main import app
+import scripts.generate_xai_reports as report_generator
 
 @pytest.fixture
 def dummy_data():
@@ -83,3 +84,50 @@ def test_api_explain_endpoints():
     
     response = client.get("/explain/aim2/global")
     assert response.status_code in (200, 404, 503)
+
+
+def test_get_champion_models_prefers_champion_family_latest_version(tmp_path, monkeypatch):
+    registry_dir = tmp_path / "registry"
+    metadata_dir = tmp_path / "metadata"
+    for aim in ["aim1_non_conversion", "aim2_contact_risk"]:
+        (registry_dir / aim).mkdir(parents=True, exist_ok=True)
+
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+
+    # Create registry files with multiple model families and versions.
+    (registry_dir / "aim1_non_conversion" / "v7_logistic_regression.pkl").touch()
+    (registry_dir / "aim1_non_conversion" / "v2_xgboost.pkl").touch()
+    (registry_dir / "aim1_non_conversion" / "v3_xgboost.pkl").touch()
+    (registry_dir / "aim2_contact_risk" / "v8_random_forest.pkl").touch()
+    (registry_dir / "aim2_contact_risk" / "v2_xgboost.pkl").touch()
+    (registry_dir / "aim2_contact_risk" / "v3_xgboost.pkl").touch()
+
+    # Metadata shows xgboost is the champion family for both aims, and the latest xgboost version should win.
+    (metadata_dir / "aim1_non_conversion_xgboost_v2.json").write_text(
+        '{"model": "xgboost", "version": "v2", "aim": "aim1_non_conversion", "cv_auc_mean": 0.91, "model_path": "mock"}'
+    )
+    (metadata_dir / "aim1_non_conversion_xgboost_v3.json").write_text(
+        '{"model": "xgboost", "version": "v3", "aim": "aim1_non_conversion", "cv_auc_mean": 0.90, "model_path": "mock"}'
+    )
+    (metadata_dir / "aim1_non_conversion_logistic_regression_v7.json").write_text(
+        '{"model": "logistic_regression", "version": "v7", "aim": "aim1_non_conversion", "cv_auc_mean": 0.80, "model_path": "mock"}'
+    )
+    (metadata_dir / "aim2_contact_risk_xgboost_v2.json").write_text(
+        '{"model": "xgboost", "version": "v2", "aim": "aim2_contact_risk", "cv_auc_mean": 0.89, "model_path": "mock"}'
+    )
+    (metadata_dir / "aim2_contact_risk_xgboost_v3.json").write_text(
+        '{"model": "xgboost", "version": "v3", "aim": "aim2_contact_risk", "cv_auc_mean": 0.88, "model_path": "mock"}'
+    )
+    (metadata_dir / "aim2_contact_risk_random_forest_v8.json").write_text(
+        '{"model": "random_forest", "version": "v8", "aim": "aim2_contact_risk", "cv_auc_mean": 0.75, "model_path": "mock"}'
+    )
+
+    monkeypatch.setattr(report_generator, "REGISTRY_DIR", registry_dir)
+    monkeypatch.setattr(report_generator, "METADATA_DIR", metadata_dir)
+
+    champions = report_generator.get_champion_models()
+
+    assert champions == [
+        {"aim": "aim1_non_conversion", "model_name": "xgboost", "version": "v3"},
+        {"aim": "aim2_contact_risk", "model_name": "xgboost", "version": "v3"},
+    ]

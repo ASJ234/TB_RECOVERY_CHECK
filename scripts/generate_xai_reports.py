@@ -3,6 +3,8 @@ XAI Report Generator
 Generates SHAP-based explainability reports for all trained TB Recovery Check models.
 Produces summary plots, waterfall plots for sample patients, and a consolidated report.
 """
+import json
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -32,47 +34,108 @@ from src.explain.visualizations import (  # noqa: E402
 
 MODELS_DIR = ROOT / "models"
 REGISTRY_DIR = MODELS_DIR / "registry"
+METADATA_DIR = MODELS_DIR / "metadata"
 REPORTS_DIR = ROOT / "reports" / "xai"
 DATA_DIR = ROOT / "data" / "cleaned"
+KNOWN_AIMS = {"aim1_non_conversion", "aim2_contact_risk"}
+
+
+def _version_number(meta: dict) -> int:
+    """Extract the integer part of a version string like 'v9' -> 9."""
+    version = meta.get("version", "v0")
+    match = re.search(r"\d+", str(version))
+    return int(match.group()) if match else 0
+
+
+def get_champion_model_meta(aim: str) -> dict | None:
+    """Return the champion model metadata for a single aim: choose the best-performing family, then the latest version inside that family."""
+    METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    family_best = {}
+
+    for meta_path in sorted(METADATA_DIR.glob(f"{aim}_*.json")):
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        if meta.get("aim") != aim:
+            continue
+
+        score = meta.get("cv_auc_mean")
+        if score is None or (isinstance(score, float) and np.isnan(score)):
+            score = meta.get("train_auc")
+        if score is None or (isinstance(score, float) and np.isnan(score)):
+            continue
+
+        family = str(meta.get("model") or "unknown")
+        version = _version_number(meta)
+        current = family_best.get(family)
+        if current is None:
+            family_best[family] = {"score": score, "version": version, "meta": meta}
+            continue
+
+        if score > current["score"]:
+            family_best[family] = {"score": score, "version": version, "meta": meta}
+        elif score == current["score"] and version > current["version"]:
+            family_best[family] = {"score": score, "version": version, "meta": meta}
+
+    if not family_best:
+        return None
+
+    best_family = None
+    best_score = -1.0
+    for family, record in family_best.items():
+        if record["score"] > best_score:
+            best_family = family
+            best_score = record["score"]
+
+    if best_family is None:
+        return None
+
+    record = family_best[best_family]
+    family_versions = []
+    for meta_path in sorted(METADATA_DIR.glob(f"{aim}_*.json")):
+        try:
+            with open(meta_path) as f:
+                meta = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            continue
+        if meta.get("aim") != aim or str(meta.get("model") or "unknown") != best_family:
+            continue
+        score = meta.get("cv_auc_mean")
+        if score is None or (isinstance(score, float) and np.isnan(score)):
+            score = meta.get("train_auc")
+        if score is None or (isinstance(score, float) and np.isnan(score)):
+            continue
+        family_versions.append((meta, _version_number(meta)))
+
+    if not family_versions:
+        return record["meta"]
+
+    family_versions.sort(key=lambda item: item[1], reverse=True)
+    return family_versions[0][0]
 
 
 def get_champion_models():
-    """Scan the registry directories for actual model .pkl files on disk."""
+    """Return the champion model metadata for each supported aim."""
     if not REGISTRY_DIR.exists():
         print(f"ERROR: Registry not found at {REGISTRY_DIR}")
         return []
 
-    # Only process known aim directories
-    KNOWN_AIMS = {"aim1_non_conversion", "aim1_non_conversion_strict", "aim2_contact_risk"}
-
     champions = []
-    for aim_dir in sorted(REGISTRY_DIR.iterdir()):
-        if not aim_dir.is_dir():
+    for aim in sorted(KNOWN_AIMS):
+        champion_meta = get_champion_model_meta(aim)
+        if champion_meta is None:
             continue
-        aim = aim_dir.name
-        if aim not in KNOWN_AIMS:
+
+        model_name = champion_meta.get("model")
+        version = champion_meta.get("version")
+        if not model_name or not version:
             continue
-        # Find all .pkl files, pick the latest by version number
-        pkl_files = sorted(aim_dir.glob("*.pkl"))
-        if not pkl_files:
-            continue
-        # Parse version and model name from filename like v3_xgboost.pkl
-        best = None
-        best_version_num = -1
-        for pkl in pkl_files:
-            stem = pkl.stem  # e.g. "v3_xgboost"
-            parts = stem.split("_", 1)
-            if len(parts) == 2:
-                ver_str, model_name = parts[0], parts[1]
-                try:
-                    ver_num = int(ver_str.lstrip("v"))
-                except ValueError:
-                    continue
-                if ver_num > best_version_num:
-                    best_version_num = ver_num
-                    best = {"aim": aim, "model_name": model_name, "version": ver_str}
-        if best:
-            champions.append(best)
+
+        champions.append({"aim": aim, "model_name": model_name, "version": version})
+
     return champions
 
 

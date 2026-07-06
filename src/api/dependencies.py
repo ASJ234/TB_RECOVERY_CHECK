@@ -10,10 +10,19 @@ METADATA_DIR = MODELS_DIR / "metadata"
 _model_cache = {}
 
 
+def _version_number(meta: dict) -> int:
+    """Extract the integer part of a version string like 'v9' -> 9."""
+    import re
+    v = meta.get("version", "v0")
+    m = re.search(r"\d+", str(v))
+    return int(m.group()) if m else 0
+
+
 def _get_champion_meta(aim: str) -> Optional[dict]:
     METADATA_DIR.mkdir(parents=True, exist_ok=True)
     best = None
     best_score = -1.0
+    best_version = -1
     for meta_path in METADATA_DIR.glob(f"{aim}_*.json"):
         with open(meta_path) as f:
             meta = json.load(f)
@@ -25,10 +34,13 @@ def _get_champion_meta(aim: str) -> Optional[dict]:
         # Fall back to train_auc when cv_auc_mean is NaN or missing.
         if score is None or (isinstance(score, float) and score != score):
             score = meta.get("train_auc")
-        if score is not None and not (
-            isinstance(score, float) and score != score
-        ) and score > best_score:
+        if score is None or (isinstance(score, float) and score != score):
+            continue
+        ver = _version_number(meta)
+        # Prefer higher score; break ties by preferring the latest version number.
+        if score > best_score or (score == best_score and ver > best_version):
             best_score = score
+            best_version = ver
             best = meta
     return best
 
