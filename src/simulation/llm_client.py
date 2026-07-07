@@ -241,8 +241,8 @@ class LLMClient(_BaseLLMClient):
         self,
         model: str = "tinyllama",
         base_url: str = "http://localhost:11434",
-        timeout_seconds: int = 30,
-        max_retries: int = 3,
+        timeout_seconds: int = 10,
+        max_retries: int = 2,
         fallback: bool = True,
     ):
         super().__init__(fallback=fallback, max_retries=max_retries)
@@ -296,68 +296,3 @@ class LLMClient(_BaseLLMClient):
         if resp.status_code != 200:
             raise RuntimeError(f"Ollama returned {resp.status_code}: {resp.text[:200]}")
         return resp.json().get("response", "")
-
-
-class GitHubModelsClient(_BaseLLMClient):
-    def __init__(
-        self,
-        model: str = "gpt-4o-mini",
-        max_retries: int = 3,
-        fallback: bool = True,
-        timeout_seconds: int = 30,
-    ):
-        super().__init__(fallback=fallback, max_retries=max_retries)
-        self.model = model
-        self.timeout_seconds = timeout_seconds
-        self._client = None
-
-    def check_available(self) -> bool:
-        if self._available is not None:
-            return self._available
-        token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-        if not token:
-            logger.warning(
-                "Neither GITHUB_TOKEN nor GH_TOKEN set — cannot use GitHub Models, using fallback"
-            )
-            self._available = False
-            return False
-        try:
-            from openai import OpenAI
-
-            self._client = OpenAI(
-                base_url="https://models.inference.ai.azure.com",
-                api_key=token,
-            )
-            self._available = True
-            logger.info(
-                "GitHub Models client ready (model='%s')", self.model
-            )
-        except Exception as e:
-            logger.warning(
-                "GitHub Models init failed: %s — using fallback", e
-            )
-            self._available = False
-        return self._available
-
-    def _call_llm(self, prompt: str) -> str:
-        if self._client is None:
-            raise RuntimeError(
-                "GitHubModelsClient not initialized. Call check_available() first."
-            )
-        resp = self._client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a clinical data simulator. "
-                        "Always respond with valid JSON."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            max_tokens=2048,
-        )
-        return resp.choices[0].message.content or ""

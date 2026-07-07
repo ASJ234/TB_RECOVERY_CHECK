@@ -8,7 +8,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from src.simulation.llm_client import LLMClient, GitHubModelsClient
+from src.simulation.llm_client import LLMClient
 from src.simulation.drift_scenarios import SCENARIOS, list_scenarios, get_scenario
 from src.simulation.data_generator import DataGenerator
 from src.simulation.outputs import SimulationOutputs
@@ -31,8 +31,7 @@ class StreamSimulator:
         records_per_window: int = 10,
         pace_seconds: float = 1.0,
         fallback: bool = True,
-        llm_model: str = "gpt-4o-mini",
-        llm_provider: str = "github_models",
+        llm_model: str = "tinyllama",
         random_state: int = 42,
     ):
         self.scenario = get_scenario(scenario_name)
@@ -49,19 +48,14 @@ class StreamSimulator:
         self.reference_distributions = self.data_gen.get_reference_distributions()
         self.reference_df = self.data_gen.df
 
-        self.llm = self._build_llm_client(llm_provider, llm_model, fallback)
+        self.llm = self._build_llm_client("ollama", llm_model, fallback)
         self.outputs = SimulationOutputs(scenario_name)
         self.results = []
         self.alerts = []
         self.pipeline = None
 
     def _build_llm_client(self, provider: str, model: str, fallback: bool):
-        if provider == "ollama":
-            return LLMClient(model=model, fallback=fallback)
-        elif provider == "github_models":
-            return GitHubModelsClient(model=model, fallback=fallback)
-        else:
-            raise ValueError(f"Unknown LLM provider: {provider}. Use 'ollama' or 'github_models'.")
+        return LLMClient(model=model, fallback=fallback)
 
     def _load_champion_model(self):
         try:
@@ -394,13 +388,8 @@ def parse_args():
         help="Random seed (default: 42)",
     )
     parser.add_argument(
-        "--llm-model", type=str, default="gpt-4o-mini",
-        help="LLM model name (default: gpt-4o-mini for GitHub Models)",
-    )
-    parser.add_argument(
-        "--llm-provider", type=str, default="github_models",
-        choices=["ollama", "github_models"],
-        help="LLM provider to use (default: github_models)",
+        "--llm-model", type=str, default="tinyllama",
+        help="Ollama model name (default: tinyllama)",
     )
     return parser.parse_args()
 
@@ -428,7 +417,6 @@ def main():
             pace_seconds=args.pace,
             fallback=not args.no_fallback,
             llm_model=args.llm_model,
-            llm_provider=args.llm_provider,
             random_state=args.seed,
         )
         sim.run()

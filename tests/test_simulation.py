@@ -34,70 +34,6 @@ class TestDriftScenarios:
                 assert curve in valid, f"{name}: unknown curve '{curve}' for {feat}"
 
 
-class TestGitHubModelsClient:
-    def test_check_available_no_token(self, monkeypatch):
-        from src.simulation.llm_client import GitHubModelsClient
-        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        client = GitHubModelsClient(fallback=True)
-        assert not client.check_available()
-        assert client._available is False
-
-    def test_fallback_params_inherited(self):
-        from src.simulation.llm_client import GitHubModelsClient
-        client = GitHubModelsClient(fallback=True)
-        ref_dist = {
-            "AGE (YEARS)": {"type": "numeric", "mean": 35.0, "std": 10.0, "min": 18, "max": 78},
-        }
-        params = client._fallback_params("gradual_age_shift", 36, 72, ref_dist)
-        assert params["source"] == "fallback"
-        assert params["hour"] == 36
-        assert params["AGE (YEARS)"]["mean"] > 35.0
-
-    def test_parse_json_inherited(self):
-        from src.simulation.llm_client import GitHubModelsClient
-        client = GitHubModelsClient()
-        raw = '{"hour": 5, "mean_age": 37.2}'
-        result = client._parse_json(raw)
-        assert result is not None
-        assert result["hour"] == 5
-
-    def test_validate_params_inherited(self):
-        from src.simulation.llm_client import GitHubModelsClient
-        client = GitHubModelsClient()
-        ref = {
-            "AGE (YEARS)": {"type": "numeric", "mean": 35.0, "std": 10.0, "min": 18, "max": 78},
-            "COUGH": {"type": "categorical", "distribution": {"YES": 0.9, "NO": 0.1}},
-        }
-        valid = {"AGE (YEARS)": {"mean": 40.0, "std": 12.0}, "COUGH": {"distribution": {"YES": 0.8, "NO": 0.2}}}
-        invalid = {"AGE (YEARS)": {"std": 12.0}}  # missing "mean"
-        assert client._validate_params(valid, ref)
-        assert not client._validate_params(invalid, ref)
-
-    def test_build_prompt_inherited(self):
-        from src.simulation.llm_client import GitHubModelsClient
-        client = GitHubModelsClient()
-        ref = {
-            "AGE (YEARS)": {"type": "numeric", "mean": 35.0, "std": 10.0, "min": 18, "max": 78},
-        }
-        prompt = client._build_prompt("gradual_age_shift", 36, 72, ref, None)
-        assert "gradual_age_shift" in prompt
-        assert "MIDDLE" in prompt
-
-    def test_call_llm_not_initialized(self):
-        from src.simulation.llm_client import GitHubModelsClient
-        client = GitHubModelsClient(fallback=True)
-        with pytest.raises(RuntimeError, match="not initialized"):
-            client._call_llm("test prompt")
-
-    def test_generate_drift_params_fallback_no_token(self, monkeypatch):
-        from src.simulation.llm_client import GitHubModelsClient
-        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-        client = GitHubModelsClient(fallback=True)
-        ref = {"AGE (YEARS)": {"type": "numeric", "mean": 35.0, "std": 10.0, "min": 18, "max": 78}}
-        params = client.generate_drift_params("gradual_age_shift", 36, 72, ref)
-        assert params["source"] == "fallback"
-        assert params["AGE (YEARS)"]["mean"] > 35.0
-
 
 class TestLLMClient:
     def test_fallback_params(self):
@@ -235,7 +171,7 @@ class TestFallbackDriftCurves:
 
 class TestStreamSimulator:
     def test_init_default_provider(self):
-        from src.simulation.llm_client import GitHubModelsClient
+        from src.simulation.llm_client import LLMClient
         from src.simulation.stream_simulator import StreamSimulator
         sim = StreamSimulator(
             scenario_name="gradual_age_shift",
@@ -247,24 +183,12 @@ class TestStreamSimulator:
         )
         assert sim.total_hours == 3
         assert sim.scenario_name == "gradual_age_shift"
-        assert isinstance(sim.llm, GitHubModelsClient)
-
-    def test_init_ollama_provider(self):
-        from src.simulation.llm_client import LLMClient
-        from src.simulation.stream_simulator import StreamSimulator
-        sim = StreamSimulator(
-            scenario_name="gradual_age_shift",
-            aim="aim1",
-            total_hours=3,
-            records_per_window=3,
-            pace_seconds=0,
-            fallback=True,
-            llm_provider="ollama",
-        )
         assert isinstance(sim.llm, LLMClient)
+        assert sim.llm.model == "tinyllama"
 
-    def test_run_deterministic(self):
+    def test_run_deterministic(self, monkeypatch):
         from src.simulation.stream_simulator import StreamSimulator
+        monkeypatch.setattr("src.simulation.llm_client.LLMClient.check_available", lambda self: False)
         sim = StreamSimulator(
             scenario_name="gradual_age_shift",
             aim="aim1",
@@ -277,9 +201,10 @@ class TestStreamSimulator:
         assert len(sim.results) == 3
         assert len(sim.alerts) >= 0
 
-    def test_run_all_scenarios_short(self):
+    def test_run_all_scenarios_short(self, monkeypatch):
         from src.simulation.stream_simulator import StreamSimulator
         from src.simulation.drift_scenarios import list_scenarios
+        monkeypatch.setattr("src.simulation.llm_client.LLMClient.check_available", lambda self: False)
         for sc_name in list_scenarios():
             sim = StreamSimulator(
                 scenario_name=sc_name,
@@ -345,7 +270,8 @@ class TestOutputs:
 
 class TestAPIEndpoints:
     @pytest.fixture(autouse=True)
-    def setup(self):
+    def setup(self, monkeypatch):
+        monkeypatch.setattr("src.simulation.llm_client.LLMClient.check_available", lambda self: False)
         from fastapi.testclient import TestClient
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
         from src.api.main import app

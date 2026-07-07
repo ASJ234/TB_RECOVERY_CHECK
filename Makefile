@@ -63,10 +63,10 @@ drift-check:
 	PYTHONPATH=. $(PYTHON) scripts/drift_check.py
 
 simulate-stream:
-	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-provider $(or $(LLM_PROVIDER),github_models) --llm-model "$(or $(LLM_MODEL),gpt-4o-mini)"
+	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario $(or $(SCENARIO),gradual_age_shift) --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-model "$(or $(LLM_MODEL),tinyllama)"
 
 simulate-all:
-	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario all --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-provider $(or $(LLM_PROVIDER),github_models) --llm-model "$(or $(LLM_MODEL),gpt-4o-mini)"
+	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --scenario all --aim $(or $(AIM),aim1) --pace $(or $(PACE),1.0) --llm-model "$(or $(LLM_MODEL),tinyllama)"
 
 simulate-list:
 	PYTHONPATH=. $(PYTHON) -m src.simulation.stream_simulator --list-scenarios

@@ -5,7 +5,7 @@ Generates a **72-hour streaming data scenario** to exercise drift detection. Use
 ## Quick Start
 
 ```bash
-# Run a simulation (uses GitHub Models by default — no setup needed if GITHUB_TOKEN is set)
+# Run a simulation (uses Ollama with tinyllama by default)
 python -m src.simulation.stream_simulator --scenario gradual_age_shift
 
 # Run with deterministic fallback (no LLM required at all)
@@ -16,9 +16,6 @@ python -m src.simulation.stream_simulator --list-scenarios
 
 # Run all scenarios
 python -m src.simulation.stream_simulator --scenario all --pace 0
-
-# Use Ollama instead (requires local Ollama server)
-python -m src.simulation.stream_simulator --scenario gradual_age_shift --llm-provider ollama --llm-model tinyllama
 ```
 
 ## How It Works
@@ -68,49 +65,29 @@ For each hour in 0–71:
 | `--records` | `10` | Records per hourly window |
 | `--pace` | `1.0` | Seconds between windows (0 = instant) |
 | `--no-fallback` | (off) | Require LLM; error if unavailable |
-| `--llm-provider` | `github_models` | LLM provider: `github_models` or `ollama` |
-| `--llm-model` | `gpt-4o-mini` | Model name (depends on provider) |
+| `--llm-model` | `tinyllama` | Ollama model name |
 | `--seed` | `42` | Random seed for reproducibility |
 | `--list-scenarios` | — | List available scenarios and exit |
 
-## LLM Providers
+## LLM Provider
 
-### GitHub Models (default)
+### Ollama (default)
 
-Uses the [GitHub Models](https://github.com/marketplace/models) free API — no separate API key needed.
-
-- **How it works**: Reads `GITHUB_TOKEN` or `GH_TOKEN` from the environment
-- **Default model**: `gpt-4o-mini`
-- **Auth**: Your GitHub personal access token (no credit card required)
-- **CI**: Works out of the box in GitHub Actions — `GITHUB_TOKEN` is auto-injected
-- **Network**: Each hourly call sends a short prompt (~500 bytes) and receives a small JSON response (~200 bytes). For a 72-hour simulation: ~72 API calls, roughly 50 KB total.
-
-```bash
-# Set your token locally (not needed in GitHub Actions)
-export GITHUB_TOKEN=ghp_your_token_here
-
-# Run with GitHub Models
-python -m src.simulation.stream_simulator --llm-provider github_models
-```
-
-### Ollama (local)
-
-For fully local development with no network calls.
+Requires a local Ollama server. All computation is local with no network calls.
 
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull tinyllama
 
-# Run with Ollama
-python -m src.simulation.stream_simulator --llm-provider ollama --llm-model tinyllama
+# Run (Ollama with tinyllama is the default)
+python -m src.simulation.stream_simulator --scenario gradual_age_shift
 ```
 
 ## Fallback Behavior
 
 When the LLM provider is unavailable, the simulator automatically falls back to **deterministic drift curves** — mathematical functions that produce smooth parameter shifts based on the scenario definition.
 
-- `GITHUB_TOKEN` / `GH_TOKEN` not set → GitHub Models falls back
 - Ollama not reachable → Ollama falls back
 - API returns invalid JSON → retries up to 3 times, then falls back
 - Rate limited or truncated response → retries, then falls back
@@ -198,8 +175,7 @@ All saved to `monitoring_reports/{scenario}/{timestamp}/`:
   "records_per_window": 10,
   "pace_seconds": 1.0,
   "fallback": true,
-  "llm_provider": "github_models",
-  "llm_model": "gpt-4o-mini"
+  "llm_model": "tinyllama"
 }
 ```
 
@@ -219,16 +195,15 @@ make simulate-list                                       # List scenarios
 
 | Class | Provider | When to use |
 |-------|----------|-------------|
-| `GitHubModelsClient` | GitHub Models API | CI/CD, local dev with GitHub token (default) |
-| `LLMClient` | Ollama (local) | Fully offline development |
+| `LLMClient` | Ollama | Local development (default) |
 
-Both extend `_BaseLLMClient` and share prompt construction, JSON parsing, parameter validation, and deterministic fallback logic.
+`LLMClient` extends `_BaseLLMClient` and inherits prompt construction, JSON parsing, parameter validation, and deterministic fallback logic.
 
 ### File reference
 
 | File | Purpose |
 |------|---------|
-| `llm_client.py` | `_BaseLLMClient` (abstract), `LLMClient` (Ollama), `GitHubModelsClient` (GitHub) |
+| `llm_client.py` | `_BaseLLMClient` (abstract), `LLMClient` (Ollama) |
 | `data_generator.py` | `DataGenerator` — loads reference data, computes distributions, generates windows |
 | `drift_scenarios.py` | `DriftScenario` dataclass and 7 predefined scenarios |
 | `stream_simulator.py` | `StreamSimulator` — orchestrates hourly windows, drift checks, and reporting |
