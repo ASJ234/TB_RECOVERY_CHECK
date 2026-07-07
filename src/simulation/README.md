@@ -29,11 +29,34 @@ LLM (GitHub Models / Ollama)  ──►  Drift Parameters  ──►  Data Gener
      └── fallback ──────────────────────────┘  (deterministic curves when offline)
 ```
 
-At each of 72 hours:
-1. The LLM (or fallback) generates **drift parameters** — structured values describing how the data distribution should shift (e.g., `mean_age: 42.5`, `hiv_rate: 0.12`)
-2. The `DataGenerator` samples N realistic patient records following those parameters
-3. Existing `compute_data_drift()` and `compute_model_drift()` compare the window against the reference dataset
-4. Results are saved in `monitoring_reports/simulation_{scenario}_{timestamp}/`
+### Step-by-Step Simulation Flow
+
+**1. Initialization** — `stream_simulator.py`
+- You pick a **drift scenario** (`drift_scenarios.py` has 7: e.g., `gradual_age_shift`, `sudden_outbreak`, `seasonal_bmi`). Each defines which features drift and what curve shape (linear, sine, step, etc.) over 72 hours.
+- A `DataGenerator` loads the reference dataset (cleaned CSV) for the chosen aim and computes per-feature reference distributions (mean/std for numeric, frequencies for categorical).
+- An **LLM client** (Ollama or GitHub Models) is initialized to generate drift parameters each hour. Falls back to deterministic mathematical curves if the LLM is unavailable.
+
+**2. 72-Hour Loop** — `StreamSimulator.run()`
+For each hour in 0–71:
+1. **Get drift parameters**: The LLM is prompted with the scenario, current progress (BEGINNING/MIDDLE/END), and reference distributions. It returns a JSON dict mapping each feature to adjusted parameters (e.g., `{"AGE": {"mean": 45, "std": 12}}`). On failure, deterministic curves compute the drift (e.g., `linear_up` → `mean += base_mean * 0.4 * (h/72)`).
+2. **Generate a data window**: `DataGenerator.generate_window(n=10, drift_params)` samples 10 synthetic patients: numeric features from `N(adjusted_mean, adjusted_std)` clipped to bounds, categorical features from adjusted probability tables. Correlations (e.g., cough→fever) are applied.
+3. **Run drift checks**: The window is compared against the reference:
+   - **Data drift**: KS test (numeric) + Chi-square (categorical) + PSI per feature. Flagged when >30% of features drift.
+   - **Model drift**: If a champion model is loaded, AUC, accuracy, and prediction distribution (PSI) are compared. Flagged when AUC drops >0.05 or prediction PSI >0.1.
+4. **Log results**: Drift ratio, per-feature status, and alerts are recorded. Sleeps to maintain pace (~1s per hour).
+
+**3. Finalization** — `_finalize()`
+- Summary stats: total alerts, max drift, sustained drift (≥4 of last 6 hours with drift).
+- `SimulationOutputs` saves 3 JSON files + 3 PNG plots:
+  - `drift_timeseries.json` — hourly results
+  - `alert_log.json` — all triggered alerts
+  - `simulation_summary.json` — top-level summary
+  - `drift_over_time.png` — dual-axis: drift ratio + AUC drop over 72h
+  - `alert_timeline.png` — which hours had data/model/both drift
+  - `feature_drift_heatmap.png` — per-feature drift across all hours
+- Everything is logged to **MLflow** under the `simulation_drift` experiment.
+
+**Output directory**: `monitoring_reports/simulation_{scenario}_{timestamp}/`
 
 ## CLI Arguments
 
