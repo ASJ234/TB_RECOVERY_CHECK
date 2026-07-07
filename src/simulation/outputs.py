@@ -12,7 +12,7 @@ class SimulationOutputs:
     def __init__(self, scenario_name: str, output_dir: Optional[Path] = None):
         self.scenario_name = scenario_name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.output_dir = output_dir or (REPORTS_DIR / f"simulation_{scenario_name}_{timestamp}")
+        self.output_dir = output_dir or (REPORTS_DIR / scenario_name / timestamp)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def save_timeseries(self, results: list):

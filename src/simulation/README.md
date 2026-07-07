@@ -56,7 +56,7 @@ For each hour in 0–71:
   - `feature_drift_heatmap.png` — per-feature drift across all hours
 - Everything is logged to **MLflow** under the `simulation_drift` experiment.
 
-**Output directory**: `monitoring_reports/simulation_{scenario}_{timestamp}/`
+**Output directory**: `monitoring_reports/{scenario}/{timestamp}/`
 
 ## CLI Arguments
 
@@ -168,7 +168,7 @@ The prompt does **not** include target columns, identifiers, dates, or high-card
 
 ## Output
 
-All saved to `monitoring_reports/simulation_{scenario}_{timestamp}/`:
+All saved to `monitoring_reports/{scenario}/{timestamp}/`:
 
 | File | Contents |
 |------|----------|
