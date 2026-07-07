@@ -122,7 +122,8 @@ class TestLLMClient:
         }
         params = client._fallback_params("nonexistent", 36, 72, ref_dist)
         assert params["source"] == "fallback"
-        assert params["AGE (YEARS)"]["mean"] == 35.0
+        # Features with no drift curve are skipped — they use bootstrapping
+        assert "AGE (YEARS)" not in params
 
     def test_parse_json_plain(self):
         from src.simulation.llm_client import LLMClient

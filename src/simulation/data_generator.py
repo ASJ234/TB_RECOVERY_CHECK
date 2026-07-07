@@ -29,6 +29,8 @@ class DataGenerator:
     def _compute_distributions(self):
         self.distributions = {}
         self.feature_order = []
+        # Store raw values for bootstrapping
+        self._raw_values = {}
 
         for c in self.df.columns:
             if c.startswith("Unnamed"):
@@ -37,6 +39,7 @@ class DataGenerator:
                 continue
             self.feature_order.append(c)
             vals = self.df[c].dropna()
+            self._raw_values[c] = vals.values
             if vals.dtype in (np.float64, np.int64, float, int):
                 self.distributions[c] = {
                     "type": "numeric",
@@ -61,6 +64,10 @@ class DataGenerator:
     def get_feature_order(self) -> list:
         return list(self.feature_order)
 
+    def _bootstrap(self, col: str, n_records: int) -> np.ndarray:
+        """Resample actual reference values — preserves the true distribution."""
+        return self.rng.choice(self._raw_values[col], size=n_records)
+
     def generate_window(
         self,
         n_records: int = 10,
@@ -73,15 +80,18 @@ class DataGenerator:
         for c in self.feature_order:
             ref = self.distributions[c]
             dp = drift_params.get(c, {})
+            has_drift = bool(dp) and any(k != "hour" for k in dp)
 
             if ref["type"] == "numeric":
-                mean = dp.get("mean", ref["mean"])
-                std = dp.get("std", ref["std"])
-                lo = dp.get("min", ref["min"])
-                hi = dp.get("max", ref["max"])
-
-                vals = self.rng.normal(mean, std, size=n_records)
-                vals = np.clip(vals, lo, hi)
+                if has_drift:
+                    mean = dp.get("mean", ref["mean"])
+                    std = dp.get("std", ref["std"])
+                    lo = dp.get("min", ref["min"])
+                    hi = dp.get("max", ref["max"])
+                    vals = self.rng.normal(mean, std, size=n_records)
+                    vals = np.clip(vals, lo, hi)
+                else:
+                    vals = self._bootstrap(c, n_records)
 
                 if c in ("BASELINE_POSITIVE", "TARGET_NON_CONVERSION_ANY",
                          "TARGET_NON_CONVERSION_2M", "TARGET_NON_CONVERSION_5M",
@@ -94,7 +104,10 @@ class DataGenerator:
 
                 records[c] = vals
             else:
-                dist_param = dp.get("distribution", ref["distribution"])
+                if has_drift:
+                    dist_param = dp.get("distribution", ref["distribution"])
+                else:
+                    dist_param = ref["distribution"]
                 categories = list(dist_param.keys())
                 probs = list(dist_param.values())
                 probs = np.array(probs) / sum(probs)

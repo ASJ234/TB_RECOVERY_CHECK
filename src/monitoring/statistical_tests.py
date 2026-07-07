@@ -37,10 +37,26 @@ def chi_square_test(
             "p_value": float("nan"),
             "drift_detected": False,
         }
-    ref_prop = ref_dist / ref_dist.sum() * cur_dist.sum()
-    valid = ref_prop > 0
+    # Expected counts under null: row_total * col_total / grand_total
+    # Minimum expected count should be >= 5 for chi-square to be reliable
+    table = np.array([ref_dist, cur_dist])
+    row_sums = table.sum(axis=1, keepdims=True)
+    col_sums = table.sum(axis=0, keepdims=True)
+    grand_total = table.sum()
+    expected = row_sums @ col_sums / grand_total
+    min_expected = expected.min()
+    if min_expected < 1.0:
+        return {
+            "feature": feature_name,
+            "test": "chi_square",
+            "statistic": float("nan"),
+            "p_value": float("nan"),
+            "drift_detected": False,
+            "info": f"min_expected={min_expected:.2f} < 1 — sample too small for chi-square",
+        }
+    # Drop zero-expected columns
+    valid = expected[0] > 0
     if not valid.all():
-        table = np.array([ref_dist, cur_dist])
         table = table[:, valid]
         if table.shape[1] < 2:
             return {
@@ -49,9 +65,8 @@ def chi_square_test(
                 "statistic": float("nan"),
                 "p_value": float("nan"),
                 "drift_detected": False,
+                "info": "fewer than 2 valid categories",
             }
-    else:
-        table = np.array([ref_dist, cur_dist])
     with np.errstate(all="ignore"):
         stat, p_value, _, _ = chi2_contingency(table, correction=False)
     return {
@@ -86,7 +101,27 @@ def psi(
             "statistic": 0.0,
             "drift_detected": False,
         }
-    bins = np.percentile(reference, np.linspace(0, 100, num_bins + 1))
+    n_cur = len(current)
+    # PSI is unreliable for small windows — bins become too sparse
+    if n_cur < 50:
+        return {
+            "feature": feature_name,
+            "test": "psi",
+            "statistic": float("nan"),
+            "drift_detected": False,
+            "info": "window too small for PSI (n<50)",
+        }
+    # Use fewer bins when the window is small so each bin has ~5+ samples
+    safe_bins = min(num_bins, max(4, n_cur // 5))
+    bins = np.percentile(reference, np.linspace(0, 100, safe_bins + 1))
+    bins = np.unique(bins)
+    if len(bins) < 2:
+        return {
+            "feature": feature_name,
+            "test": "psi",
+            "statistic": 0.0,
+            "drift_detected": False,
+        }
     bins[0] = -np.inf
     bins[-1] = np.inf
     ref_counts = np.histogram(reference, bins=bins)[0].astype(float)
@@ -109,6 +144,16 @@ def categorical_psi(
     current: np.ndarray,
     feature_name: str = "",
 ) -> dict:
+    n_cur = len(current)
+    # Categorical PSI is unreliable for small windows — too few samples per category
+    if n_cur < 50:
+        return {
+            "feature": feature_name,
+            "test": "categorical_psi",
+            "statistic": float("nan"),
+            "drift_detected": False,
+            "info": "window too small for categorical_psi (n<50)",
+        }
     ref_counts = pd.Series(reference).value_counts()
     cur_counts = pd.Series(current).value_counts()
     all_cats = sorted(set(ref_counts.index) | set(cur_counts.index))

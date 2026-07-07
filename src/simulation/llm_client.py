@@ -99,7 +99,9 @@ class _BaseLLMClient(ABC):
         filtered = {}
         skip_prefixes = ("TARGET_",)
         skip_exact = {"IS_IMPUTED", "SOURCE", "DRUG/REGIMEN", "BASELINE",
-                      "TREATMENT OUTCOME", "HIGHEST LEVEL OF EDUCATION",
+                      "TREATMENT OUTCOME",
+                      "HIGHEST LEVEL OF EDUCATION",
+                      "HIGHEST LEVEL OF EDUCATION (None/Primary/Secondary/Higher[S5/6]/Tertiary)",
                       "OCCUPATION/WORK", "IF_YES_WHEN", "TREATED_FOR_TB",
                       "RISK FACTORS", "COMOBIDITIES", "COMPLICATIONS OF A TB PATIENT"}
         for feat, dist in reference_distributions.items():
@@ -204,10 +206,12 @@ Do NOT include any text outside the JSON object."""
         drift_curves = scenario.drift_curves if scenario else {}
 
         for feat, ref in reference_distributions.items():
+            drift_fn = drift_curves.get(feat, "none")
+            if drift_fn == "none":
+                continue
             if ref["type"] == "numeric":
                 base_mean = ref["mean"]
                 base_std = ref["std"]
-                drift_fn = drift_curves.get(feat, "none")
                 if drift_fn == "linear_up":
                     delta = base_mean * 0.4 * t
                 elif drift_fn == "linear_down":

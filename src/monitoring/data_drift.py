@@ -13,10 +13,13 @@ from src.monitoring.statistical_tests import (
 def _infer_feature_types(df: pd.DataFrame) -> dict:
     types = {}
     for c in df.columns:
-        if df[c].dtype in (np.float64, np.int64, float, int):
-            types[c] = "numeric"
-        elif df[c].dropna().nunique() <= 2:
+        nunique = df[c].dropna().nunique()
+        if nunique == 1:
+            types[c] = "constant"
+        elif nunique <= 2:
             types[c] = "binary"
+        elif df[c].dtype in (np.float64, np.int64, float, int):
+            types[c] = "numeric"
         else:
             types[c] = "categorical"
     return types
@@ -45,6 +48,16 @@ def compute_data_drift(
 
         if len(ref_vals) == 0 or len(cur_vals) == 0:
             per_feature[col] = {"error": "empty column", "drift_detected": False}
+            continue
+
+        if ftype == "constant":
+            per_feature[col] = {
+                "type": "constant",
+                "drift_detected": False,
+                "reference_n": int(len(ref_vals)),
+                "current_n": int(len(cur_vals)),
+                "info": "constant feature — skipped",
+            }
             continue
 
         results = []

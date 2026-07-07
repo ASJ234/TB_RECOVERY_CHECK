@@ -144,9 +144,19 @@ class StreamSimulator:
 
     def _run_drift_checks(self, window_df: pd.DataFrame, hour: int) -> dict:
         from src.monitoring.data_drift import compute_data_drift
+        from src.simulation.llm_client import _BaseLLMClient
 
         feature_cols = self.data_gen.get_feature_order()
         available = [c for c in feature_cols if c in self.reference_df.columns and c in window_df.columns]
+
+        # Apply the same clinically relevant feature filter as the LLM client,
+        # excluding high-cardinality, constant, and non-clinical features
+        all_distributions = self.data_gen.get_reference_distributions()
+        filtered = _BaseLLMClient._filter_drift_features(
+            {f: all_distributions[f] for f in available if f in all_distributions}
+        )
+        available = [c for c in available if c in filtered]
+
         if not available:
             return {"hour": hour, "error": "no overlapping features"}
 
